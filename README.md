@@ -10,7 +10,7 @@ o3Enc is a Windows batch script utility that simplifies video encoding using NVI
 
 ## Requirements
 
-- Windows 7 SP1 or later (PowerShell required)
+- Windows 10 later
 - NVIDIA GPU with NVENC support
 
 ## Installation

@@ -2,9 +2,7 @@
 chcp 65001 > nul
 setlocal enabledelayedexpansion
 
-set "GLOBAL_ERROR=0"
 set "TEMP_FILES="
-set "CONFIG_LOADED=0"
 
 goto :main
 
@@ -14,7 +12,7 @@ REM ===================================================================
 :main
 cls
 echo ============================================================
-echo                        o3Enc 1.0.0
+echo                        o3Enc 1.0.1
 echo             NVEnc Encoding Utility
 echo      https://github.com/oo0v/o3enc
 echo ============================================================
@@ -404,11 +402,13 @@ set "colortrc="
 set "colorprim="
 set "colorrange="
 set "r_frame_rate="
+set "chroma_location="
+set "field_order="
 
 echo Analyzing input video file...
 
 REM Get video stream info
-for /f "tokens=1,2 delims==" %%a in ('ffprobe -v quiet -select_streams v:0 -print_format flat -show_entries stream^=width^,height^,r_frame_rate^,nb_frames^,codec_name^,duration^,bit_rate^,pix_fmt^,color_space^,color_transfer^,color_primaries^,color_range "%~1" 2^>^&1') do (
+for /f "tokens=1,2 delims==" %%a in ('ffprobe -v quiet -select_streams v:0 -print_format flat -show_entries stream^=width^,height^,r_frame_rate^,nb_frames^,codec_name^,duration^,bit_rate^,pix_fmt^,color_space^,color_transfer^,color_primaries^,color_range^,field_order^,chroma_location "%~1" 2^>^&1') do (
     set "line=%%a"
     set "value=%%~b"
     set "line=!line:streams.stream.0.=!"
@@ -425,6 +425,8 @@ for /f "tokens=1,2 delims==" %%a in ('ffprobe -v quiet -select_streams v:0 -prin
     if "!line!"=="color_transfer" set "colortrc=!value!"
     if "!line!"=="color_primaries" set "colorprim=!value!"
     if "!line!"=="color_range" set "colorrange=!value!"
+    if "!line!"=="chroma_location" set "chroma_location=!value!"
+    if "!line!"=="field_order" set "field_order=!value!"
 )
 
 REM Calculate FPS from frame rate
@@ -458,8 +460,11 @@ echo   Frame Rate     : %fps% fps
 echo   Duration       : %duration% seconds
 echo   Codec          : %codec%
 echo   Pixel Format   : %pixfmt%
-echo   Color Space    : %colorspace%
 echo   Color Range    : %colorrange%
+echo   Color Space    : %colorspace%
+echo   Color Transfer : %colortrc%
+echo   Color Primaries: %colorprim%
+echo   Field Order    : %field_order%
 echo   File Size      : %size_mb% MB
 echo  ---------------------------------------
 echo.
@@ -472,46 +477,48 @@ REM ===================================================================
 :analyze_color_settings
 echo.
 
-if not defined colorspace (
-    set "colorspace=unknown"
-)
+set "color_filters="
 
-echo Current color space configuration:
-echo Status: [%colorspace%]
-
-set "current_colorspace=%colorspace%"
-if "%current_colorspace%"=="unknown" (
+REM Handle unknown colorspace
+if "%colorspace%"=="unknown" (
     call :show_color_config_menu
     if errorlevel 1 exit /b 1
-) else (
-    echo Using detected color space: %current_colorspace%
-    set "color_filters=colorspace=all=%current_colorspace%"
-)
-
-echo.
-if not defined colorrange (
-    set "colorrange=unknown"
-)
-
-echo Current color range configuration:
-echo Status: [%colorrange%]
-
-set "current_colorrange=%colorrange%"
-if "%current_colorrange%"=="unknown" (
-    call :show_range_config_menu
-    if errorlevel 1 exit /b 1
-) else (
-    echo Using detected color range: %current_colorrange%
-    if "%current_colorrange%"=="tv" (
-        set "color_filters=%color_filters%:range=tv"
-    ) else (
-        set "color_filters=%color_filters%:range=pc"
+    
+    if "!colorspace!"=="bt601-6-625" (
+        set "color_filters=colorspace=all=bt709:iall=bt601-6-625"
+    ) else if "!colorspace!"=="bt709" (
+        set "color_filters=colorspace=all=bt709:iall=bt709"
     )
 )
 
-set "CONFIG_LOADED=1"
+REM Handle unknown range
+if "%colorrange%"=="unknown" (
+    call :show_range_config_menu
+    if errorlevel 1 exit /b 1
+    
+    if "!colorrange!"=="tv" (
+        if defined color_filters (
+            set "color_filters=%color_filters%:range=tv:irange=tv"
+        ) else (
+            set "color_filters=range=tv:irange=tv"
+        )
+    ) else if "!colorrange!"=="pc" (
+        if defined color_filters (
+            set "color_filters=%color_filters%:range=pc:irange=pc"
+        ) else (
+            set "color_filters=range=pc:irange=pc"
+        )
+    )
+)
+
 echo.
-echo Color configuration completed successfully.
+echo Color space conversion:
+if defined color_filters (
+    echo Filters: %color_filters%
+) else (
+    echo Metadata detected
+    echo No conversion filters needed
+)
 echo.
 exit /b 0
 
@@ -532,11 +539,11 @@ echo.
 set /p "color_choice=Enter your selection (1-2): "
 
 if "%color_choice%"=="1" (
-    set "color_filters=colorspace=all=bt709:iall=bt601-6-625"
+    set "colorspace=bt601-6-625"
     exit /b 0
 )
 if "%color_choice%"=="2" (
-    set "color_filters=colorspace=all=bt709:iall=bt709"
+    set "colorspace=bt709"
     exit /b 0
 )
 
@@ -560,11 +567,11 @@ echo.
 set /p "range_choice=Enter your selection (1-2): "
 
 if "%range_choice%"=="1" (
-    set "color_filters=%color_filters%:range=tv:irange=tv"
+    set "colorrange=tv"
     exit /b 0
 )
 if "%range_choice%"=="2" (
-    set "color_filters=%color_filters%:range=pc:irange=pc"
+    set "colorrange=pc"
     exit /b 0
 )
 
@@ -786,6 +793,24 @@ if not defined output_name (
     goto :get_filename
 )
 
+:get_next_version
+set "base=%~1"
+set "ext=%~2"
+set "version_num=01"
+
+:version_loop
+if exist "!base!_v!version_num!.!ext!" (
+    set /a "current_ver=1!version_num! - 100"
+    set /a "next_ver=!current_ver! + 1"
+    if !next_ver! LSS 10 (
+        set "version_num=0!next_ver!"
+    ) else (
+        set "version_num=!next_ver!"
+    )
+    goto :version_loop
+)
+exit /b 0
+
 :prepare_output_files
 echo.
 echo Preview of Output Files:
@@ -812,35 +837,55 @@ for %%p in (!selected_presets!) do (
     
     call :get_next_version "!base_name!" "!container!"
     set "outputs[%%p]=!base_name!_v!version_num!.!container!"
+
+    call :generate_encode_command "%%p" "%~1"
     
+    echo.
     echo Preset: [%%p]
     echo ------------------------------------------------------------
     echo Output File : !base_name!_v!version_num!.!container!
     echo Resolution  : !output_height!p
     echo Frame Rate  : !output_fps! fps
     echo Encoder     : !preset[%%p].encoder!
+    echo Pixel Format: !preset[%%p].pixfmt!
     echo.
+    echo First Pass Command:
+    echo ffmpeg !encode_cmd[%%p]! -pass 1 -an -f null NUL
+    echo.
+    echo Second Pass Command:
+    echo ffmpeg !encode_cmd[%%p]! -pass 2 %AUDIO_OPTIONS% -af "%VOLUME_NORM%" "!outputs[%%p]!"
+    echo ------------------------------------------------------------
 )
 
-set /p "confirm=Proceed with these output configurations? (Y/N): "
+set /p "confirm=Proceed with these output presets? (Y/N): "
 if /i not "%confirm%"=="Y" goto :process_queue
 exit /b 0
 
-:get_next_version
-set "base=%~1"
-set "ext=%~2"
-set "version_num=01"
-:version_loop
-if exist "!base!_v!version_num!.!ext!" (
-    set /a "current_ver=1!version_num! - 100"
-    set /a "next_ver=!current_ver! + 1"
-    if !next_ver! LSS 10 (
-        set "version_num=0!next_ver!"
-    ) else (
-        set "version_num=!next_ver!"
+:generate_encode_command
+set "preset=%~1"
+set "input_path=%~2"
+
+REM Setup video filters
+set "video_filters=format=!preset[%preset%].pixfmt!"
+if defined preset[%preset%].height (
+    if !preset[%preset%].height! NEQ !height! (
+        set "scale_flags=bicubic"
+        if defined preset[%preset%].scale_flags set "scale_flags=!preset[%preset%].scale_flags!"
+        set "video_filters=!video_filters!,scale=-1:!preset[%preset%].height!:flags=!scale_flags!"
     )
-    goto :version_loop
 )
+if defined preset[%preset%].fps (
+    if !preset[%preset%].fps! NEQ !fps! (
+        set "video_filters=!video_filters!,fps=!preset[%preset%].fps!"
+    )
+)
+
+REM Add color filters if needed
+if defined color_filters set "video_filters=!video_filters!,!color_filters!"
+
+REM Store the base command for the preset
+set "encode_cmd[%preset%]=%INPUT_OPTIONS% -i "%input_path%" -c:v !preset[%preset%].encoder! !preset[%preset%].options! %LOG_OPTIONS% -vf "!video_filters!""
+
 exit /b 0
 
 :encode_presets
@@ -850,29 +895,10 @@ for %%p in (!selected_presets!) do (
     echo Processing Preset: [%%p]
     echo ----------------------------------------
     
-    REM Get output parameters
     set "current_output=!outputs[%%p]!"
     
-    REM Setup video filters
-    set "video_filters=format=!preset[%%p].pixfmt!"
-    if defined preset[%%p].height (
-        if !preset[%%p].height! NEQ !height! (
-            set "scale_flags=bicubic"
-            if defined preset[%%p].scale_flags set "scale_flags=!preset[%%p].scale_flags!"
-            set "video_filters=!video_filters!,scale=-1:!preset[%%p].height!:flags=!scale_flags!"
-        )
-    )
-    if defined preset[%%p].fps (
-        if !preset[%%p].fps! NEQ !fps! (
-            set "video_filters=!video_filters!,fps=!preset[%%p].fps!"
-        )
-    )
-    
-    REM Add color space conversion
-    set "video_filters=!video_filters!,!color_filters!"
-    
     echo First Pass Encoding...
-    set "ffmpeg_params=%INPUT_OPTIONS% -i "%input_file%" -c:v !preset[%%p].encoder! !preset[%%p].options! %LOG_OPTIONS% -vf "!video_filters!" -pass 1 -an -f null NUL"
+    set "ffmpeg_params=!encode_cmd[%%p]! -pass 1 -an -f null NUL"
     echo Command: ffmpeg !ffmpeg_params!
     echo.
     
@@ -883,7 +909,7 @@ for %%p in (!selected_presets!) do (
     
     echo.
     echo Second Pass Encoding...
-    set "ffmpeg_params=%INPUT_OPTIONS% -i "%input_file%" -c:v !preset[%%p].encoder! !preset[%%p].options! %LOG_OPTIONS% -vf "!video_filters!" -pass 2 %AUDIO_OPTIONS% -af "%VOLUME_NORM%" "!current_output!""
+    set "ffmpeg_params=!encode_cmd[%%p]! -pass 2 %AUDIO_OPTIONS% -af "%VOLUME_NORM%" "!current_output!""
     echo Command: ffmpeg !ffmpeg_params!
     echo.
     

@@ -792,6 +792,7 @@ if not defined output_name (
     echo Error: Filename cannot be empty
     goto :get_filename
 )
+goto :prepare_output_files
 
 :get_next_version
 set "base=%~1"

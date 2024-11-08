@@ -11,11 +11,11 @@ REM Main
 REM ===================================================================
 :main
 cls
-echo ============================================================
-echo                        o3Enc 1.0.1
+echo ===============================================
+echo                        o3Enc 1.0.2
 echo             NVEnc Encoding Utility
 echo      https://github.com/oo0v/o3enc
-echo ============================================================
+echo ===============================================
 echo.
 
 call :initialize_environment || exit /b 1
@@ -75,15 +75,11 @@ mkdir "%TEMP_DIR%" 2>nul || (
 )
 set "TEMP_FILES=%TEMP_FILES% %TEMP_DIR%"
 
-REM Initialize core variables
+REM Initialize core paths
 set "BIN_DIR=%~dp0bin"
 set "TOOLS_DIR=%~dp0tools"
 set "FFCMD="%BIN_DIR%\ffmpeg""
 set "PROBECMD="%BIN_DIR%\ffprobe""
-
-set "INPUT_OPTIONS=-hwaccel cuda"
-set "AUDIO_OPTIONS=-c:a aac -b:a 128k -ac 2"
-set "LOG_OPTIONS=-loglevel warning -stats"
 
 echo Checking required components in bin directory...
 REM Verify required tools and install if missing
@@ -215,21 +211,51 @@ exit /b 0
 
 :create_default_presets
 (
-    echo ==========================================================================================================
+    echo ================================================================================================================================================
     echo o3Enc Encoding Presets
-    echo Custom presets can be added to this file.
+    echo Custom presets can be added to this file
     echo [Preset-Name]
-    echo encoder=^<encoder_name^>     : nvenc encoder (h264_nvenc/hevc_nvenc/av1_nvenc^)
-    echo container=^<container_name^> : output format (mp4/mkv/mov/webm..^)
-    echo height=^<height^>            : output height (empty for source^)
-    echo fps=^<fps^>                  : output fps (empty for source^)
-    echo pixfmt=^<pixel_format^>      : yuv420p/yuv444p (yuv422p is not recommended^)
-    echo scale_flags=^<flags^>        : scaling algorithm (neighbor/bilinear/bicubic/lanczos/spline/area/etc..^)
-    echo options=^<ffmpeg_options^>   : specific options (For advanced users^)
-    echo ==========================================================================================================
+    echo.
+    echo hwaccel=^<accel^>        : Hardware acceleration (cuda, qsv, d3d11va, vaapi, none^)
+    echo.
+    echo encoder=^<encoder_name^> : Video encoder (Hardware GPU: h264_nvenc, hevc_nvenc, av1_nvenc, h264_qsv, hevc_qsv, av1_qsv, h264_vaapi, hevc_vaapi, av1_vaapi^)
+    echo                                        (Distribution: libx264, libx265, libvpx-vp9, libaom-av1, librav1e, libsvtav1^)
+    echo                                        (Professional: prores, prores_videotoolbox, dnxhd, cineform, ffv1, magicyuv^)
+    echo.
+    echo container=^<format^>     : Container format (mp4, mkv, mov, webm, mxf, gxf...^)
+    echo.
+    echo height=^<height^>        : Output height (empty for source^)
+    echo fps=^<fps^>              : Output fps (empty for source^)
+    echo.
+    echo pixfmt=^<format^>        : Pixel format (8-bit: yuv420p, yuv422p, yuv444p, rgb24^)
+    echo                                       (10-bit: yuv420p10le, yuv422p10le, yuv444p10le^)
+    echo                                       (12-bit: yuv420p12le, yuv422p12le, yuv444p12le^)
+    echo                                       (Professional: rgb48le, gbrp, gbrap^)
+    echo.
+    echo scale_flags=^<flags^>    : Scaling algorithm (neighbor, bilinear, bicubic, lanczos, spline, area^)
+    echo options=^<...^>          : FFmpeg options (For advanced users^)
+    echo                           Quality Control:
+    echo                             -preset p7          : NVENC quality preset (p1-p7, higher is better quality^)
+    echo                             -rc:v constqp       : Constant QP mode
+    echo                             -init_qpI/P/B       : Initial QP values for I/P/B frames (lower is higher quality^)
+    echo                           Frame Control:
+    echo                             -rc-lookahead       : Number of frames for lookahead (higher gives better quality^)
+    echo                             -bf                 : Maximum number of B frames
+    echo                             -refs               : Number of reference frames
+    echo                             -b_ref_mode each    : B frame referencing mode
+    echo                           Bitrate Control:
+    echo                             -b:v                : Target bitrate (e.g. 6000k^)
+    echo                             -maxrate:v          : Maximum bitrate
+    echo                             -bufsize:v          : Buffer size (typically 2x maxrate^)
+    echo.
+    echo target_lufs=^<LUFS^>     : Target loudness (-18 LUFS^)
+    echo target_lra=^<LU^>        : Loudness range (7 LU^)
+    echo target_tp=^<dB^>         : True peak (-2 dB^)
+    echo ================================================================================================================================================
     echo.
     echo preset_start:
     echo [Basic-H264-yuv420]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=
@@ -237,8 +263,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=lanczos
     echo options=-preset p7 -rc:v constqp -init_qpI 22 -init_qpP 22 -init_qpB 24 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Basic-H264-yuv420-1440p]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=1440
@@ -246,8 +276,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=lanczos
     echo options=-preset p7 -rc:v constqp -init_qpI 22 -init_qpP 24 -init_qpB 24 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Archive-HEVC-yuv444]
+    echo hwaccel=cuda
     echo encoder=hevc_nvenc
     echo container=mp4
     echo height=
@@ -255,8 +289,12 @@ exit /b 0
     echo pixfmt=yuv444p
     echo scale_flags=bilinear
     echo options=-preset p7 -rc:v constqp -init_qpI 18 -init_qpP 18 -init_qpB 20 -rc-lookahead 53 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Archive-HEVC-yuv420]
+    echo hwaccel=cuda
     echo encoder=hevc_nvenc
     echo container=mp4
     echo height=
@@ -264,8 +302,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -rc:v constqp -init_qpI 18 -init_qpP 18 -init_qpB 20 -rc-lookahead 53 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Archive-HEVC-yuv444-1440p]
+    echo hwaccel=cuda
     echo encoder=hevc_nvenc
     echo container=mp4
     echo height=1440
@@ -273,8 +315,12 @@ exit /b 0
     echo pixfmt=yuv444p
     echo scale_flags=bilinear
     echo options=-preset p7 -rc:v constqp -init_qpI 18 -init_qpP 18 -init_qpB 20 -rc-lookahead 53 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Archive-HEVC-yuv420-1440p]
+    echo hwaccel=cuda
     echo encoder=hevc_nvenc
     echo container=mp4
     echo height=1440
@@ -282,8 +328,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -rc:v constqp -init_qpI 18 -init_qpP 18 -init_qpB 20 -rc-lookahead 53 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Archive-H264-yuv444]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=
@@ -291,8 +341,12 @@ exit /b 0
     echo pixfmt=yuv444p
     echo scale_flags=bilinear
     echo options=-preset p7 -rc:v constqp -init_qpI 18 -init_qpP 18 -init_qpB 20 -rc-lookahead 53 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Archive-H264-yuv420]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=
@@ -300,8 +354,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -rc:v constqp -init_qpI 18 -init_qpP 18 -init_qpB 20 -rc-lookahead 53 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Archive-H264-yuv444-1440p]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=1440
@@ -309,8 +367,12 @@ exit /b 0
     echo pixfmt=yuv444p
     echo scale_flags=bilinear
     echo options=-preset p7 -rc:v constqp -init_qpI 18 -init_qpP 20 -init_qpB 22 -rc-lookahead 53 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Archive-H264-yuv420-1440p]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=1440
@@ -318,8 +380,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -rc:v constqp -init_qpI 18 -init_qpP 20 -init_qpB 22 -rc-lookahead 53 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Iwara-2160p60fps]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=2160
@@ -327,8 +393,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -b:v 23600k -maxrate:v 23800k -bufsize:v 47600k -rc-lookahead 32 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Iwara-2160p30fps]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=2160
@@ -336,8 +406,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -b:v 16800k -maxrate:v 17000k -bufsize:v 34000k -rc-lookahead 32 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Iwara-1440p60fps]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=1440
@@ -345,8 +419,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -b:v 15900k -maxrate:v 16100k -bufsize:v 32200k -rc-lookahead 32 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Iwara-1440p30fps]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=1440
@@ -354,8 +432,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -b:v 11300k -maxrate:v 11500k -bufsize:v 23000k -rc-lookahead 32 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Iwara-1080p60fps]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=1080
@@ -363,8 +445,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -b:v 10300k -maxrate:v 10500k -bufsize:v 21000k -rc-lookahead 32 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Iwara-1080p30fps]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=1080
@@ -372,8 +458,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -b:v 7300k -maxrate:v 7500k -bufsize:v 15000k -rc-lookahead 32 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Iwara-720p60fps]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=720
@@ -381,8 +471,12 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -b:v 6100k -maxrate:v 6300k -bufsize:v 12600k -rc-lookahead 32 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
     echo.
     echo [Iwara-720p30fps]
+    echo hwaccel=cuda
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=720
@@ -390,6 +484,9 @@ exit /b 0
     echo pixfmt=yuv420p
     echo scale_flags=bilinear
     echo options=-preset p7 -b:v 4300k -maxrate:v 4500k -bufsize:v 9000k -rc-lookahead 32 -bf 2 -refs 16 -b_ref_mode each
+    echo target_lufs=-18
+    echo target_lra=7
+    echo target_tp=-2
 ) > "%preset_file%" || (
     call :error_exit "Failed to create default presets file"
     exit /b 1
@@ -623,9 +720,42 @@ echo Analyzing audio levels...
 set "temp_stats=%temp%\loudnorm_stats.txt"
 set "TEMP_FILES=%TEMP_FILES% %temp_stats%"
 
-ffmpeg %INPUT_OPTIONS% -i "%input_file%" -af "loudnorm=I=-18:LRA=7:print_format=json" -f null NUL 2>"%temp_stats%" || (
-    call :error_exit "Audio analysis failed"
-    exit /b 1
+REM Get target values (use defaults if not specified)
+set "target_lufs=-18"
+set "target_lra=7"
+set "target_tp=-2"
+
+REM Override with preset values if available
+for %%p in (!selected_presets!) do (
+    if defined preset[%%p].target_lufs set "target_lufs=!preset[%%p].target_lufs!"
+    if defined preset[%%p].target_lra set "target_lra=!preset[%%p].target_lra!"
+    if defined preset[%%p].target_tp set "target_tp=!preset[%%p].target_tp!"
+)
+
+REM Get hardware acceleration for audio analysis
+set "analysis_accel="
+for %%p in (!selected_presets!) do (
+    if defined preset[%%p].hwaccel (
+        if /i not "!preset[%%p].hwaccel!"=="none" (
+            set "analysis_accel=-hwaccel !preset[%%p].hwaccel!"
+            goto :got_accel
+        )
+    )
+)
+:got_accel
+
+REM First pass - analyze audio
+%FFCMD% !analysis_accel! -i "%input_file%" -af "loudnorm=I=!target_lufs!:LRA=!target_lra!:print_format=json" -f null NUL 2>"%temp_stats%" || (
+    REM If hardware acceleration fails, try without it
+    if defined analysis_accel (
+        %FFCMD% -i "%input_file%" -af "loudnorm=I=!target_lufs!:LRA=!target_lra!:print_format=json" -f null NUL 2>"%temp_stats%" || (
+            call :error_exit "Audio analysis failed"
+            exit /b 1
+        )
+    ) else (
+        call :error_exit "Audio analysis failed"
+        exit /b 1
+    )
 )
 
 REM Parse loudnorm stats
@@ -635,14 +765,24 @@ for /f "tokens=2 delims=:," %%a in ('findstr "input_tp" "%temp_stats%"') do set 
 for /f "tokens=2 delims=:," %%a in ('findstr "input_thresh" "%temp_stats%"') do set "input_thresh=%%a"
 for /f "tokens=2 delims=:," %%a in ('findstr "target_offset" "%temp_stats%"') do set "target_offset=%%a"
 
-REM LKFS=-18
-set "VOLUME_NORM=loudnorm=I=-18:LRA=7:TP=-2:measured_I=!input_i!:measured_LRA=!input_lra!:measured_TP=!input_tp!:measured_thresh=!input_thresh!:offset=!target_offset!:linear=true:print_format=summary"
+REM Setup normalization with target values
+set "VOLUME_NORM=loudnorm=I=!target_lufs!:LRA=!target_lra!:TP=!target_tp!"
+set "VOLUME_NORM=!VOLUME_NORM!:measured_I=!input_i!"
+set "VOLUME_NORM=!VOLUME_NORM!:measured_LRA=!input_lra!"
+set "VOLUME_NORM=!VOLUME_NORM!:measured_TP=!input_tp!"
+set "VOLUME_NORM=!VOLUME_NORM!:measured_thresh=!input_thresh!"
+set "VOLUME_NORM=!VOLUME_NORM!:offset=!target_offset!"
+set "VOLUME_NORM=!VOLUME_NORM!:linear=true:print_format=summary"
 
 echo Audio Analysis Results:
 echo   -------------------------------------
-echo   Input Loudness   : !input_i! LUFS
-echo   Loudness Range   : !input_lra! LU
-echo   True Peak Level  : !input_tp! dB
+echo   Target LUFS     : !target_lufs! LUFS
+echo   Target LRA      : !target_lra! LU
+echo   Target TP       : !target_tp! dB
+echo   -------------------------------------
+echo   Input Loudness  : !input_i! LUFS
+echo   Loudness Range  : !input_lra! LU
+echo   True Peak Level : !input_tp! dB
 echo   -------------------------------------
 
 exit /b 0
@@ -893,15 +1033,59 @@ exit /b 0
 set "preset=%~1"
 set "input_path=%~2"
 
+REM Get encoder settings from preset
+set "encoder=!preset[%preset%].encoder!"
+if not defined encoder (
+    call :error_exit "Encoder not specified in preset [%preset%]"
+    exit /b 1
+)
+
+REM Set default hardware acceleration based on encoder
+set "hwaccel=none"
+if defined preset[%preset%].hwaccel (
+    set "hwaccel=!preset[%preset%].hwaccel!"
+) else (
+    for %%s in (nvenc qsv vaapi) do (
+        if "!encoder!" == "*%%s" set "hwaccel=%%s"
+    )
+    if "!encoder:~-5!"=="nvenc" set "hwaccel=cuda"
+)
+
+REM Setup hardware acceleration options
+set "accel_opts="
+if /i not "!hwaccel!"=="none" (
+    set "accel_opts=-hwaccel !hwaccel!"
+    
+    REM Add extra options for specific accelerators
+    if /i "!hwaccel!"=="cuda" set "accel_opts=!accel_opts! -hwaccel_output_format cuda"
+    if /i "!hwaccel!"=="d3d11va" set "accel_opts=!accel_opts! -hwaccel_output_format d3d11"
+    if /i "!hwaccel!"=="qsv" set "accel_opts=!accel_opts! -hwaccel_output_format qsv"
+    if /i "!hwaccel!"=="vaapi" set "accel_opts=!accel_opts! -hwaccel_output_format vaapi"
+)
+
 REM Setup video filters
 set "video_filters=format=!preset[%preset%].pixfmt!"
+
+REM Add scaling if height is different
 if defined preset[%preset%].height (
     if !preset[%preset%].height! NEQ !height! (
         set "scale_flags=bicubic"
         if defined preset[%preset%].scale_flags set "scale_flags=!preset[%preset%].scale_flags!"
-        set "video_filters=!video_filters!,scale=-1:!preset[%preset%].height!:flags=!scale_flags!"
+        
+        REM Use hardware scaling if available
+        if /i "!hwaccel!"=="cuda" (
+            set "video_filters=!video_filters!,scale_cuda=-1:!preset[%preset%].height!:interp_algo=!scale_flags!"
+        ) else if /i "!hwaccel!"=="qsv" (
+            set "video_filters=!video_filters!,scale_qsv=-1:!preset[%preset%].height!"
+        ) else if /i "!hwaccel!"=="vaapi" (
+            set "video_filters=!video_filters!,scale_vaapi=-1:!preset[%preset%].height!"
+        ) else (
+            set "video_filters=!video_filters!,scale=-1:!preset[%preset%].height!:flags=!scale_flags!"
+        )
     )
 )
+
+REM Add fps filter if needed
 if defined preset[%preset%].fps (
     if !preset[%preset%].fps! NEQ !fps! (
         set "video_filters=!video_filters!,fps=!preset[%preset%].fps!"
@@ -911,8 +1095,8 @@ if defined preset[%preset%].fps (
 REM Add color filters if needed
 if defined color_filters set "video_filters=!video_filters!,!color_filters!"
 
-REM Store the base command for the preset
-set "encode_cmd[%preset%]=%INPUT_OPTIONS% -i "%input_path%" -c:v !preset[%preset%].encoder! !preset[%preset%].options! %LOG_OPTIONS% -vf "!video_filters!""
+REM Build the full command using preset options
+set "encode_cmd[%preset%]=!accel_opts! -i "%input_path%" -c:v !encoder! !preset[%preset%].options! -vf "!video_filters!""
 
 exit /b 0
 
@@ -930,24 +1114,30 @@ for %%p in (!selected_presets!) do (
     echo Command: ffmpeg !ffmpeg_params!
     echo.
     
-    ffmpeg !ffmpeg_params! || (
-        call :error_exit "First pass encoding failed for preset [%%p]"
-        exit /b 1
+    (ffmpeg !ffmpeg_params! -loglevel warning -stats 2>&1)
+    if errorlevel 1 (
+        echo Error occurred during first pass encoding
+        if defined failed_presets (
+            set "failed_presets=!failed_presets! %%p"
+        ) else (
+            set "failed_presets=%%p"
+        )
+    ) else (
+        echo Second Pass Encoding...
+        set "ffmpeg_params=!encode_cmd[%%p]! -pass 2 -c:a aac -b:a 128k -ac 2 -af "%VOLUME_NORM%" "!current_output!""
+        echo Command: ffmpeg !ffmpeg_params!
+        echo.
+        
+        (ffmpeg !ffmpeg_params! -loglevel warning -stats 2>&1)
+        if errorlevel 1 (
+            echo Error occurred during second pass encoding
+            if defined failed_presets (
+                set "failed_presets=!failed_presets! %%p"
+            ) else (
+                set "failed_presets=%%p"
+            )
+        )
     )
-    
-    echo.
-    echo Second Pass Encoding...
-    set "ffmpeg_params=!encode_cmd[%%p]! -pass 2 %AUDIO_OPTIONS% -af "%VOLUME_NORM%" "!current_output!""
-    echo Command: ffmpeg !ffmpeg_params!
-    echo.
-    
-    ffmpeg !ffmpeg_params! || (
-        call :error_exit "Second pass encoding failed for preset [%%p]"
-        exit /b 1
-    )
-    
-    echo.
-    echo Encoding completed successfully for preset [%%p]
     echo.
 )
 
@@ -956,45 +1146,80 @@ exit /b 0
 
 :show_results
 echo.
+echo Encoding Results:
+echo ----------------------------------------
 
 for %%p in (!selected_presets!) do (
-    echo Results for Preset: [%%p]
-    echo ----------------------------------------
-    
     set "current_output=!outputs[%%p]!"
     
-    if exist "!current_output!" (
-        for /f "tokens=1,2 delims==" %%a in ('ffprobe -v quiet -select_streams v:0 -print_format flat -show_entries stream^=width^,height^,r_frame_rate^,codec_name^,pix_fmt^,color_space^,color_range "!current_output!" 2^>^&1') do (
-            set "line=%%a"
-            set "value=%%~b"
-            set "line=!line:streams.stream.0.=!"
-            
-            if "!line!"=="width" set "width=!value!"
-            if "!line!"=="height" set "height=!value!"
-            if "!line!"=="r_frame_rate" set "r_frame_rate=!value!"
-            if "!line!"=="codec_name" set "codec=!value!"
-            if "!line!"=="pix_fmt" set "pixfmt=!value!"
-            if "!line!"=="color_space" set "colorspace=!value!"
-            if "!line!"=="color_range" set "colorrange=!value!"
-        )
-        
-        for /f "tokens=1,2 delims=/" %%a in ("!r_frame_rate!") do set /a "fps=%%a/%%b"
-        
-        for %%A in ("!current_output!") do set /a "size_mb=%%~zA / 1024 / 1024"
-        
-        echo Output File    : !current_output!
-        echo Resolution     : !width! x !height!
-        echo Frame Rate     : !fps! fps
-        echo Codec          : !codec!
-        echo File Size      : !size_mb! MB
-        echo Pixel Format   : !pixfmt!
-        echo Color Space    : !colorspace!
-        echo Color Range    : !colorrange!
-        
-    ) else (
-        echo Error: Output file was not created
+    set "is_failed="
+    if defined failed_presets (
+        for %%f in (!failed_presets!) do if "%%f"=="%%p" set "is_failed=1"
     )
-    echo.
+    
+    if defined is_failed (
+        echo [%%p] : Failed
+    ) else (
+        if exist "!current_output!" (
+            echo [%%p] : Success
+        ) else (
+            echo [%%p] : Failed
+        )
+    )
+)
+
+echo.
+echo Detailed Information:
+echo ----------------------------------------
+
+for %%p in (!selected_presets!) do (
+    set "current_output=!outputs[%%p]!"
+    
+    set "is_failed="
+    if defined failed_presets (
+        for %%f in (!failed_presets!) do if "%%f"=="%%p" set "is_failed=1"
+    )
+    
+    if not defined is_failed (
+        if exist "!current_output!" (
+            echo Details for [%%p]:
+            
+            for /f "tokens=1,2 delims==" %%a in ('ffprobe -v quiet -select_streams v:0 -print_format flat -show_entries stream^=width^,height^,r_frame_rate^,codec_name^,pix_fmt^,color_space^,color_range^,color_transfer^,color_primaries "!current_output!" 2^>^&1') do (
+                set "line=%%a"
+                set "value=%%~b"
+                set "line=!line:streams.stream.0.=!"
+                
+                if "!line!"=="width" set "width=!value!"
+                if "!line!"=="height" set "height=!value!"
+                if "!line!"=="r_frame_rate" set "r_frame_rate=!value!"
+                if "!line!"=="codec_name" set "codec=!value!"
+                if "!line!"=="pix_fmt" set "pixfmt=!value!"
+                if "!line!"=="color_space" set "colorspace=!value!"
+                if "!line!"=="color_range" set "colorrange=!value!"
+                if "!line!"=="color_transfer" set "transfer=!value!"
+                if "!line!"=="color_primaries" set "primaries=!value!"
+            )
+            
+            for /f "tokens=1,2 delims=/" %%a in ("!r_frame_rate!") do set /a "fps=%%a/%%b"
+            
+            for %%A in ("!current_output!") do (
+                set /a "size_mb=%%~zA / 1024 / 1024"
+                set "full_path=%%~fA"
+            )
+            
+            echo   Output File    : !full_path!
+            echo   Resolution     : !width! x !height!
+            echo   Frame Rate     : !fps! fps
+            echo   Codec          : !codec!
+            echo   File Size      : !size_mb! MB
+            echo   Pixel Format   : !pixfmt!
+            echo   Color Space    : !colorspace!
+            echo   Color Transfer : !transfer!
+            echo   Color Primaries: !primaries!
+            echo   Color Range    : !colorrange!
+            echo.
+        )
+    )
 )
 
 exit /b 0

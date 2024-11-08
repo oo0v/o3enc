@@ -218,7 +218,7 @@ exit /b 0
 :create_default_presets
 echo Creating default encoding presets...
 (
-    echo =====================================================
+    echo ==========================================================================================================
     echo o3Enc Encoding Presets
     echo Custom presets can be added to this file.
     echo [Preset-Name]
@@ -229,9 +229,27 @@ echo Creating default encoding presets...
     echo pixfmt=^<pixel_format^>      : yuv420p/yuv444p (yuv422p is not recommended^)
     echo scale_flags=^<flags^>        : scaling algorithm (neighbor/bilinear/bicubic/lanczos/spline/area/etc..^)
     echo options=^<ffmpeg_options^>   : specific options (For advanced users^)
-    echo =====================================================
+    echo ==========================================================================================================
     echo.
     echo preset_start:
+    echo [Basic-H264-yuv420]
+    echo encoder=h264_nvenc
+    echo container=mp4
+    echo height=
+    echo fps=
+    echo pixfmt=yuv420p
+    echo scale_flags=lanczos
+    echo options=-preset p7 -rc:v constqp -init_qpI 22 -init_qpP 22 -init_qpB 24 -bf 2 -refs 16 -b_ref_mode each
+    echo.
+    echo [Basic-H264-yuv420p]
+    echo encoder=h264_nvenc
+    echo container=mp4
+    echo height=1440
+    echo fps=
+    echo pixfmt=yuv420p
+    echo scale_flags=lanczos
+    echo options=-preset p7 -rc:v constqp -init_qpI 22 -init_qpP 24 -init_qpB 24 -bf 2 -refs 16 -b_ref_mode each
+    echo.
     echo [Archive-HEVC-yuv444]
     echo encoder=hevc_nvenc
     echo container=mp4

@@ -493,86 +493,43 @@ echo.
 
 set "color_filters="
 
-REM Prepare color conversion parameters
-set "input_params="
-set "output_params="
-
-REM Handle colorspace settings
+REM Check if we need to ask for color space settings
 if "%colorspace%"=="unknown" (
     call :show_color_config_menu
     if errorlevel 1 exit /b 1
-    
-    if "!colorspace!"=="bt601-6-625" (
-        set "output_params=space=bt709"
-        set "input_params=ispace=bt601-6-625"
-    ) else if "!colorspace!"=="bt709" (
-        set "output_params=space=bt709"
-        set "input_params=ispace=bt709"
-    )
-) else (
-    set "output_params=space=bt709"
-    set "input_params=ispace=%colorspace%"
 )
 
-REM Add transfer characteristics if defined
-if not "%colortrc%"=="unknown" (
-    if defined output_params (
-        set "output_params=%output_params%:trc=bt709"
-    ) else (
-        set "output_params=trc=bt709"
-    )
-    set "input_params=%input_params%:itrc=%colortrc%"
-)
-
-REM Add color primaries if defined
-if not "%colorprim%"=="unknown" (
-    if defined output_params (
-        set "output_params=%output_params%:primaries=bt709"
-    ) else (
-        set "output_params=primaries=bt709"
-    )
-    set "input_params=%input_params%:iprimaries=%colorprim%"
-)
-
-REM Combine parameters if any color conversion is needed
-if defined output_params (
-    set "color_filters=colorspace=%output_params%:%input_params%"
-)
-
-REM Handle range settings
-if "%colorrange%"=="unknown" (
+REM Handle range settings independently if unknown and colorspace is not auto
+if "%colorspace%"=="auto" (
+    set "colorrange=auto"
+) else if "%colorrange%"=="unknown" (
     call :show_range_config_menu
     if errorlevel 1 exit /b 1
-    
-    if "!colorrange!"=="tv" (
-        if defined color_filters (
-            set "color_filters=%color_filters%:range=tv:irange=tv"
-        ) else (
-            set "color_filters=colorspace=range=tv:irange=tv"
-        )
-    ) else if "!colorrange!"=="pc" (
-        if defined color_filters (
-            set "color_filters=%color_filters%:range=pc:irange=pc"
-        ) else (
-            set "color_filters=colorspace=range=pc:irange=pc"
-        )
-    )
-) else (
-    REM Use detected range
-    if defined color_filters (
-        set "color_filters=%color_filters%:range=%colorrange%:irange=%colorrange%"
-    ) else (
-        set "color_filters=colorspace=range=%colorrange%:irange=%colorrange%"
+)
+
+REM Apply color conversion if not auto
+if not "%colorspace%"=="auto" (
+    REM Set base color space conversion
+    if "%colorspace%"=="bt601-6-625" (
+        set "color_filters=colorspace=all=bt709:iall=bt601-6-625"
+    ) else if "%colorspace%"=="bt709" (
+        set "color_filters=colorspace=all=bt709:iall=bt709"
     )
 )
 
-echo.
+REM Add range settings only if colorspace is not auto and range is not auto
+if not "%colorspace%"=="auto" if not "%colorrange%"=="auto" (
+    if defined color_filters (
+        set "color_filters=%color_filters%:range=%colorrange%:irange=%colorrange%"
+    )
+)
+
 echo Color space conversion:
 if defined color_filters (
     echo Filters: %color_filters%
 ) else (
-    echo Metadata detected
-    echo No conversion filters needed
+    echo No conversion filters will be applied
+    echo Using FFmpeg automatic detection
 )
 echo.
 exit /b 0
@@ -580,19 +537,27 @@ exit /b 0
 :show_color_config_menu
 echo Please select color space standard:
 echo   -----------------------------------------------
+echo   [0] Auto (No color space conversion)
+echo       - Let FFmpeg automatically detect the colorspace
+echo       - Not recommended as detection may be unreliable
+echo.
 echo   [1] Standard Definition (BT.601-6-625)
-echo       - Optimized for SD content
+echo       - For SD content
 echo       - For raw video output from MMD, select this option
 echo.
 echo   [2] High Definition (BT.709)
-echo       - Optimized for HD content
-echo       - Recommended for modern HD/4K
+echo       - For HD content
+echo       - Recommended for most modern HD/4K
 echo   -----------------------------------------------
 echo.
 
-:get_color_config_choice
-set /p "color_choice=Enter your selection (1-2): "
+:get_color_config_choice 
+set /p "color_choice=Enter your selection (0-2): "
 
+if "%color_choice%"=="0" (
+    set "colorspace=auto"
+    exit /b 0
+)
 if "%color_choice%"=="1" (
     set "colorspace=bt601-6-625"
     exit /b 0
@@ -602,25 +567,33 @@ if "%color_choice%"=="2" (
     exit /b 0
 )
 
-echo Error: Invalid selection. Please enter 1 or 2.
+echo Error: Invalid selection. Please enter 0, 1 or 2.
 goto :get_color_config_choice
 
 :show_range_config_menu
 echo Please select color range:
 echo   -----------------------------------------------
+echo   [0] Auto (No range conversion)
+echo       - Let FFmpeg automatically detect the range
+echo       - Not recommended as detection may be unreliable
+echo.
 echo   [1] TV/Limited Range (16-235)
-echo       - Standard for broadcast content
+echo       - For broadcast content
 echo       - For raw video output from MMD, select this option
 echo.
 echo   [2] PC/Full Range (0-255)
-echo       - Full dynamic range
-echo       - Recommended for modern HD/4K
+echo       - For full dynamic range
+echo       - Recommended for most modern HD/4K
 echo   -----------------------------------------------
 echo.
 
 :get_range_config_choice
-set /p "range_choice=Enter your selection (1-2): "
+set /p "range_choice=Enter your selection (0-2): "
 
+if "%range_choice%"=="0" (
+    set "colorrange=auto"
+    exit /b 0
+)
 if "%range_choice%"=="1" (
     set "colorrange=tv"
     exit /b 0
@@ -630,7 +603,7 @@ if "%range_choice%"=="2" (
     exit /b 0
 )
 
-echo Error: Invalid selection. Please enter 1 or 2.
+echo Error: Invalid selection. Please enter 0, 1 or 2.
 goto :get_range_config_choice
 
 :analyze_volume
@@ -678,7 +651,6 @@ REM ===================================================================
 REM Queue processing and encoding
 REM ===================================================================
 :process_queue
-echo.
 
 echo Available Encoding Presets:
 set "preset_idx=1"

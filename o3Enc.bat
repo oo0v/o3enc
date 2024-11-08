@@ -27,7 +27,6 @@ if "%~1"=="" (
 )
 
 call :validate_input_file "%~1" || exit /b 1
-call :load_presets || exit /b 1
 call :analyze_input_video "%~1" || exit /b 1
 call :analyze_color_settings || exit /b 1
 call :process_queue "%~1" || exit /b 1
@@ -114,6 +113,9 @@ echo Testing CUDA functionality...
     exit /b 1
 )
 
+echo Loading encoding presets...
+call :load_presets || exit /b 1
+
 echo Initialization completed successfully.
 echo.
 exit /b 0
@@ -170,18 +172,15 @@ REM ===================================================================
 REM Load Presets
 REM ===================================================================
 :load_presets
-echo.
 
 set "preset_file=%~dp0presets.ini"
 if not exist "%preset_file%" (
-    echo Preset file not found. Creating default configuration...
+    echo Preset file not found. Creating default encoding presets...
     call :create_default_presets
 )
 
 set "preset_count=0"
 set "presets="
-
-echo Reading preset configurations...
 
 set "current_preset="
 set "preset_section=0"
@@ -211,12 +210,10 @@ for /f "usebackq tokens=1,* delims==" %%a in ("%preset_file%") do (
     )
 )
 
-echo Successfully loaded %preset_count% encoding presets.
-echo.
+echo Loaded %preset_count% encoding presets...
 exit /b 0
 
 :create_default_presets
-echo Creating default encoding presets...
 (
     echo ==========================================================================================================
     echo o3Enc Encoding Presets
@@ -241,7 +238,7 @@ echo Creating default encoding presets...
     echo scale_flags=lanczos
     echo options=-preset p7 -rc:v constqp -init_qpI 22 -init_qpP 22 -init_qpB 24 -bf 2 -refs 16 -b_ref_mode each
     echo.
-    echo [Basic-H264-yuv420p]
+    echo [Basic-H264-yuv420-1440p]
     echo encoder=h264_nvenc
     echo container=mp4
     echo height=1440
@@ -398,7 +395,6 @@ echo Creating default encoding presets...
     exit /b 1
 )
 echo Default presets created successfully.
-echo.
 exit /b 0
 
 REM ===================================================================

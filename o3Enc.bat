@@ -493,19 +493,53 @@ echo.
 
 set "color_filters="
 
-REM Handle unknown colorspace
+REM Prepare color conversion parameters
+set "input_params="
+set "output_params="
+
+REM Handle colorspace settings
 if "%colorspace%"=="unknown" (
     call :show_color_config_menu
     if errorlevel 1 exit /b 1
     
     if "!colorspace!"=="bt601-6-625" (
-        set "color_filters=colorspace=all=bt709:iall=bt601-6-625"
+        set "output_params=space=bt709"
+        set "input_params=ispace=bt601-6-625"
     ) else if "!colorspace!"=="bt709" (
-        set "color_filters=colorspace=all=bt709:iall=bt709"
+        set "output_params=space=bt709"
+        set "input_params=ispace=bt709"
     )
+) else (
+    set "output_params=space=bt709"
+    set "input_params=ispace=%colorspace%"
 )
 
-REM Handle unknown range
+REM Add transfer characteristics if defined
+if not "%colortrc%"=="unknown" (
+    if defined output_params (
+        set "output_params=%output_params%:trc=bt709"
+    ) else (
+        set "output_params=trc=bt709"
+    )
+    set "input_params=%input_params%:itrc=%colortrc%"
+)
+
+REM Add color primaries if defined
+if not "%colorprim%"=="unknown" (
+    if defined output_params (
+        set "output_params=%output_params%:primaries=bt709"
+    ) else (
+        set "output_params=primaries=bt709"
+    )
+    set "input_params=%input_params%:iprimaries=%colorprim%"
+)
+
+REM Combine parameters if any color conversion is needed
+if defined output_params (
+    set "color_filters=colorspace=%output_params%:%input_params%"
+)
+
+REM Handle range settings
 if "%colorrange%"=="unknown" (
     call :show_range_config_menu
     if errorlevel 1 exit /b 1
@@ -514,14 +548,21 @@ if "%colorrange%"=="unknown" (
         if defined color_filters (
             set "color_filters=%color_filters%:range=tv:irange=tv"
         ) else (
-            set "color_filters=range=tv:irange=tv"
+            set "color_filters=colorspace=range=tv:irange=tv"
         )
     ) else if "!colorrange!"=="pc" (
         if defined color_filters (
             set "color_filters=%color_filters%:range=pc:irange=pc"
         ) else (
-            set "color_filters=range=pc:irange=pc"
+            set "color_filters=colorspace=range=pc:irange=pc"
         )
+    )
+) else (
+    REM Use detected range
+    if defined color_filters (
+        set "color_filters=%color_filters%:range=%colorrange%:irange=%colorrange%"
+    ) else (
+        set "color_filters=colorspace=range=%colorrange%:irange=%colorrange%"
     )
 )
 

@@ -1,17 +1,12 @@
 # o3Enc
 
-o3Enc is a Windows batch script utility that simplifies video encoding using NVIDIA NVENC hardware acceleration. It allows users to create multiple versions of videos optimized for different platforms through customizable encoding queues.
-
-## Features
-
-- NVIDIA NVENC hardware acceleration support
-- Multiple encoding presets for different use cases
-- Automatic color management and audio level optimization
+o3Enc is a Python-based tool for video encoding using FFmpeg, with CUDA acceleration and customizable presets.
 
 ## Requirements
 
-- Windows 10 later
-- NVIDIA GPU with NVENC support
+- Python 3.7+
+- Windows 10 or later
+- NVIDIA GPU For NVENC hardware acceleration (optional)
 
 ## Installation
 
@@ -26,8 +21,8 @@ Either:
 
 ## Included Presets
 
-- High quality presets for H.264/HEVC encoding
-- Optimized presets for specific platforms
+- H.264/HEVC presets for High-Quality Archiving
+- Optimized presets for specific platforms (iwara.tv)
 
 ## License
 

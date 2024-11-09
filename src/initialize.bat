@@ -56,10 +56,12 @@ rmdir /s /q "%TEMP%\ffmpeg_temp"
 echo FFmpeg installation completed successfully.
 echo.
 echo Installation directory structure:
+echo.
 echo - bin/
 echo    - ffmpeg.exe
 echo    - ffprobe.exe
 echo    - ffplay.exe
+echo.
 
 endlocal
 goto :EOF

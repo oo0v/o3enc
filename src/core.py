@@ -254,7 +254,7 @@ class O3Encoder:
             if not isinstance(video_info, dict):
                 raise EncodingError("Invalid video_info format")
                 
-            if video_info.get("colorspace") != "unknown":
+            if video_info.get("colorspace") != "unknown" and video_info.get("colorrange") != "unknown":
                 colorspace = video_info["colorspace"]
                 colorrange = video_info["colorrange"]
                 print(f"Detected input color space: {colorspace}")
@@ -264,7 +264,7 @@ class O3Encoder:
                 logger.info(f"Using detected color settings: space={colorspace}, range={colorrange}")
                 return colorspace, colorrange
 
-            logger.info(f"No input color information detected.")
+            logger.info(f"No complete color information detected.")
             print("\nSelect input color space interpretation:")
             print("  -----------------------------------------------")
             print("  [0] Auto (No color space conversion)")
@@ -282,6 +282,10 @@ class O3Encoder:
             print()
 
             colorspace = self._get_user_color_space()
+            
+            if colorspace == "auto":
+                return "auto", "auto"
+                
             colorrange = self._get_user_color_range(video_info, colorspace)
 
             self._print_color_settings(video_info, colorspace, colorrange)
@@ -1210,11 +1214,9 @@ def main():
             color_filters = ""
             if colorspace != "auto":
                 if colorspace == "bt601-6-625":
-                    color_filters = "colorspace=all=bt709:iall=bt601-6-625"
+                    color_filters = f"colorspace=all=bt709:iall=bt601-6-625:range={colorrange}:irange={colorrange}"
                 elif colorspace == "bt709":
-                    color_filters = "colorspace=all=bt709:iall=bt709"
-                if colorrange != "auto":
-                    color_filters += f":range={colorrange}:irange={colorrange}"
+                    color_filters = f"colorspace=all=bt709:iall=bt709:range={colorrange}:irange={colorrange}"
 
             while True:  # Main selection loop
                 try:

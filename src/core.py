@@ -13,7 +13,7 @@ import logging
 from contextlib import contextmanager
 import tempfile
 
-# Configure logging
+# Config logging
 log_file_path = Path(__file__).parent / '..' / 'o3enc.log'
 logging.basicConfig(
     level=logging.INFO,
@@ -65,7 +65,6 @@ class O3Encoder:
         self.ffprobe = str(self.bin_dir / "ffprobe.exe")
         
         try:
-            # Use system temp directory with unique subfolder
             self.temp_dir = Path(tempfile.gettempdir()) / f"o3enc_{os.getpid()}"
             self.temp_dir.mkdir(exist_ok=True, parents=True)
             logger.info(f"Created temporary directory: {self.temp_dir}")
@@ -238,7 +237,6 @@ class O3Encoder:
                     "size_mb": size_mb
                 }
                 
-                # Validate video dimensions
                 if info["width"] <= 0 or info["height"] <= 0:
                     raise VideoAnalysisError(f"Invalid video dimensions: {info['width']}x{info['height']}")
                 
@@ -445,7 +443,6 @@ class O3Encoder:
                 json_str = stderr[json_start:json_end]
                 data = json.loads(json_str)
                 
-                # Validate required fields
                 required_fields = ["input_i", "input_lra", "input_tp", "input_thresh", "target_offset"]
                 missing_fields = [field for field in required_fields if field not in data]
                 if missing_fields:
@@ -487,7 +484,6 @@ class O3Encoder:
                audio_info: Optional[dict], video_info: dict) -> bool:
         logger.info(f"Starting encoding process for preset: {preset.get('name', 'unknown')}")
         with error_context("Encoding failed", EncodingError):
-            # Validate inputs
             self._validate_encoding_inputs(preset, output_file, video_info)
             
             try:
@@ -522,6 +518,9 @@ class O3Encoder:
                 if output_size == 0:
                     raise EncodingError("Output file is empty")
                 
+                # Force cleanup of FFmpeg logs after encoding
+                self.cleanup()
+                
                 logger.info(f"Encoding completed successfully: {output_file}")
                 return True
                 
@@ -532,6 +531,12 @@ class O3Encoder:
                         logger.info(f"Removed failed output file: {output_file}")
                     except OSError as del_err:
                         logger.error(f"Failed to remove failed output file: {del_err}")
+                        
+                # Try to clean up logs even if encoding failed
+                try:
+                    self.cleanup()
+                except Exception as cleanup_err:
+                    logger.error(f"Failed to clean up FFmpeg logs after error: {cleanup_err}")
                 raise
 
     def _validate_encoding_inputs(self, preset: dict, output_file: Path, video_info: dict):
@@ -547,7 +552,6 @@ class O3Encoder:
         if missing_fields:
             raise EncodingError(f"Missing required preset fields: {', '.join(missing_fields)}")
             
-        # Check output directory
         output_dir = output_file.parent
         if not output_dir.exists():
             try:
@@ -717,16 +721,50 @@ class O3Encoder:
                 cleanup_errors.append(error_msg)
                 logger.error(error_msg)
         
-        try:
-            log_file = Path("ffmpeg2pass-0.log")
-            if log_file.exists():
-                log_file.unlink()
-                logger.debug(f"Removed log file: {log_file}")
-        except Exception as e:
-            error_msg = f"Failed to remove ffmpeg2pass log file: {str(e)}"
-            cleanup_errors.append(error_msg)
-            logger.error(error_msg)
+        max_retries = 3
+        retry_delay = 1
+        
+        ffmpeg_patterns = [
+            "ffmpeg2pass-*.log",
+            "ffmpeg2pass-*.log.*",
+            "*.mbtree",
+            "*.temp",
+            "*.stats"
+        ]
+        
+        for retry in range(max_retries):
+            remaining_files = []
             
+            for pattern in ffmpeg_patterns:
+                try:
+                    for log_file in Path().glob(pattern):
+                        try:
+                            # Try to open the file to check if it's still in use
+                            with open(log_file, 'a') as f:
+                                f.close()
+                            log_file.unlink()
+                            logger.debug(f"Removed FFmpeg temporary file: {log_file}")
+                        except (PermissionError, OSError):
+                            remaining_files.append(log_file)
+                            continue
+                except Exception as e:
+                    error_msg = f"Error processing pattern {pattern}: {str(e)}"
+                    cleanup_errors.append(error_msg)
+                    logger.error(error_msg)
+            
+            if not remaining_files:
+                break
+                
+            if retry < max_retries - 1:
+                logger.debug(f"Some files still in use, retrying in {retry_delay} seconds...")
+                time.sleep(retry_delay)
+        
+        if remaining_files:
+            file_list = ', '.join(str(f) for f in remaining_files)
+            error_msg = f"Could not remove some FFmpeg temporary files: {file_list}"
+            cleanup_errors.append(error_msg)
+            logger.warning(error_msg)
+                
         if cleanup_errors:
             print("\nWarning: Some cleanup operations failed:")
             for error in cleanup_errors:
@@ -755,7 +793,6 @@ class PresetManager:
                 'target_tp': config.getfloat(section, 'target_tp', fallback=-2)
             }
             
-            # Validate required fields
             required_fields = ['encoder', 'pixfmt', 'options']
             missing = [f for f in required_fields if not preset.get(f)]
             if missing:

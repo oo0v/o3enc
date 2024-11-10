@@ -386,7 +386,7 @@ class O3Encoder:
     def analyze_audio(self, preset: dict) -> Optional[dict]:
         logger.info("Starting audio analysis...")
         print("\nAnalyzing audio levels...")
-
+        
         with error_context("Failed to analyze audio", AudioAnalysisError):
             if not isinstance(preset, dict):
                 raise AudioAnalysisError("Invalid preset format")
@@ -402,7 +402,7 @@ class O3Encoder:
             ]
             
             try:
-                result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', check=True)
             except subprocess.CalledProcessError as e:
                 raise AudioAnalysisError(f"Failed to probe audio stream: {e.stderr}")
                 
@@ -423,18 +423,32 @@ class O3Encoder:
             # Analyze audio levels
             cmd = [
                 self.ffmpeg,
+                "-v", "info",
+                "-stats",
                 "-i", self.input_file,
                 "-af", f"loudnorm=I={target_lufs}:LRA={target_lra}:print_format=json",
                 "-f", "null", "-"
             ]
             
             try:
-                result = subprocess.run(cmd, capture_output=True, text=True)
-                if result.returncode != 0:
-                    raise AudioAnalysisError(f"Audio analysis failed: {result.stderr}")
+                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, encoding='utf-8')
                 
-                # Parse JSON from stderr
-                stderr = result.stderr
+                stderr_lines = []
+                while True:
+                    line = process.stderr.readline()
+                    if not line and process.poll() is not None:
+                        break
+                    if line.startswith("frame="):
+                        print(f"\r{line.strip()}", end='', flush=True)
+                    else:
+                        stderr_lines.append(line)
+                
+                print()
+                process.wait()
+                if process.returncode != 0:
+                    raise AudioAnalysisError(f"Audio analysis failed")
+                
+                stderr = ''.join(stderr_lines)
                 json_start = stderr.find("{")
                 json_end = stderr.rfind("}") + 1
                 if json_start == -1 or json_end == 0:

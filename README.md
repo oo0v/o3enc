@@ -4,7 +4,7 @@ o3Enc is a Python-based tool for video encoding using FFmpeg, with CUDA accelera
 
 ## Requirements
 
-- Python 3.7+
+- Python
 - Windows 10 or later
 - NVIDIA GPU For NVENC hardware acceleration (optional)
 

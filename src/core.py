@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import colorama
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -319,10 +320,6 @@ class O3Encoder:
 
         print("\nSelect input color range interpretation:")
         print("  -----------------------------------------------")
-        print("  [0] Auto (No range conversion)")
-        print("      - Let FFmpeg automatically detect the range")
-        print("      - Not recommended as detection may be unreliable")
-        print()
         print("  [1] TV/Limited Range (16-235)")
         print("      - For broadcast content")
         print("      - For raw video output from MMD, select this option")
@@ -335,15 +332,13 @@ class O3Encoder:
 
         while True:
             try:
-                choice = input("Enter your selection (0-2): ").strip()
-                if choice == "0":
-                    return "auto"
-                elif choice == "1":
+                choice = input("Enter your selection (1-2): ").strip()
+                if choice == "1":
                     return "tv"
                 elif choice == "2":
                     return "pc"
                 else:
-                    logger.warning(f"Invalid selection. Please enter 0, 1 or 2.")
+                    logger.warning(f"Invalid selection. Please enter 1 or 2.")
             except EOFError:
                 raise EncodingError("Unexpected end of input")
             except KeyboardInterrupt:
@@ -1214,9 +1209,14 @@ def main():
             color_filters = ""
             if colorspace != "auto":
                 if colorspace == "bt601-6-625":
-                    color_filters = f"colorspace=all=bt709:iall=bt601-6-625:range={colorrange}:irange={colorrange}"
+                    color_filters = "colorspace=all=bt709:iall=bt601-6-625"
                 elif colorspace == "bt709":
-                    color_filters = f"colorspace=all=bt709:iall=bt709:range={colorrange}:irange={colorrange}"
+                    color_filters = "colorspace=all=bt709:iall=bt709"
+                    
+                if colorrange in ["tv", "pc"]:
+                    color_filters = f"{base_filter}:range={colorrange}:irange={colorrange}"
+                else:
+                    color_filters = base_filter
 
             while True:  # Main selection loop
                 try:

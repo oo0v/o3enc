@@ -28,14 +28,14 @@ graph TD
     Install --> Analysis
     ComponentCheck -->|Present| Analysis[Video Analysis]
     
-    Analysis --> MetadataCheck{Color Info<br/>in Metadata?}
+    Analysis --> MetadataCheck{Color Info in Metadata?}
     MetadataCheck -->|Yes| PresetSelect[Preset Selection]
     
-    MetadataCheck -->|No| ColorSpace[Input Color Space<br/>[0] Auto<br/>[1] SD BT.601<br/>[2] HD BT.709]
-    ColorSpace --> ColorRange[Input Color Range<br/>[0] Auto<br/>[1] TV 16-235<br/>[2] PC 0-255]
+    MetadataCheck -->|No| ColorSpace["Color Space Selection"]
+    ColorSpace --> ColorRange["Color Range Selection"]
     ColorRange --> PresetSelect
     
-    PresetSelect --> OutputName[Output Name<br/>[Y/N] Use input name]
+    PresetSelect --> OutputName[Output Name Selection]
     OutputName --> AudioCheck{Audio Track?}
     
     AudioCheck -->|Yes| AudioAnalysis[Audio Analysis]

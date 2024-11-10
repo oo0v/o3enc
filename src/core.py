@@ -1208,15 +1208,9 @@ def main():
             # Set up color filters
             color_filters = ""
             if colorspace != "auto":
-                if colorspace == "bt601-6-625":
-                    color_filters = "colorspace=all=bt709:iall=bt601-6-625"
-                elif colorspace == "bt709":
-                    color_filters = "colorspace=all=bt709:iall=bt709"
-                    
+                color_filters = "colorspace=all=bt709:iall=" + colorspace
                 if colorrange in ["tv", "pc"]:
-                    color_filters = f"{base_filter}:range={colorrange}:irange={colorrange}"
-                else:
-                    color_filters = base_filter
+                    color_filters += f":range={colorrange}:irange={colorrange}"
 
             while True:  # Main selection loop
                 try:

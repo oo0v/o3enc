@@ -15,13 +15,18 @@ echo And installed to:
 echo %LONG_PATH%
 echo (Internal path: %INSTALL_PATH%)
 echo.
-set /p "CONFIRM=Proceed with installation? (Y/N): "
-if /i not "!CONFIRM!"=="Y" (
-    echo Installation cancelled by user.
-    endlocal
-    exit /b 1
-)
 
+:PROMPT_INSTALL
+set /p "CONFIRM=Proceed with installation? (Y/N): "
+if /i "!CONFIRM!"=="Y" goto :START_INSTALL
+if /i "!CONFIRM!"=="N" (
+    endlocal
+    exit /b 2
+)
+echo Invalid input. Please enter Y or N.
+goto :PROMPT_INSTALL
+
+:START_INSTALL
 echo Starting FFmpeg installation...
 
 if not exist "!INSTALL_PATH!" (

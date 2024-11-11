@@ -107,28 +107,23 @@ class O3Encoder:
             try:
                 self.bin_dir.mkdir(exist_ok=True, parents=True)
                 
-                process = subprocess.run(
-                    [str(init_script)],
-                    check=True
-                )
+                process = subprocess.run([str(init_script)])
                 
-                missing_after_init = []
-                for tool in missing_tools:
-                    exe_path = self.bin_dir / f"{tool}.exe"
-                    if not exe_path.exists():
-                        missing_after_init.append(tool)
-
-                if missing_after_init:
+                if process.returncode == 2:  # User declined installation
+                    logger.info("User declined to install required tools")
+                    raise KeyboardInterrupt
+                if process.returncode != 0:  # Other errors
                     raise InitializationError(
-                        f"Failed to install required tools: {', '.join(missing_after_init)}"
+                        f"Initialization script failed with return code: {process.returncode}"
+                    )
+                    
+                if not all((self.bin_dir / f"{tool}.exe").exists() for tool in missing_tools):
+                    raise InitializationError(
+                        f"Failed to install required tools: {', '.join(missing_tools)}"
                     )
                     
                 logger.info("Required tools installation completed successfully")
                 
-            except subprocess.CalledProcessError as e:
-                raise InitializationError(
-                    f"Initialization script failed with return code: {e.returncode}"
-                )
             except OSError as e:
                 raise InitializationError(
                     f"Failed to execute initialization script: {str(e)}"

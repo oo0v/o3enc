@@ -55,7 +55,6 @@ graph TD
 
 CC0
 
-This software uses FFmpeg licensed under the LGPLv2.1. FFmpeg source code can be obtained from:
 - FFmpeg official site: https://ffmpeg.org/
 - gyan.dev (Windows builds): https://www.gyan.dev/ffmpeg/builds/
 

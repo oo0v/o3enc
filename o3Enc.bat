@@ -11,7 +11,9 @@ echo.
 
 if "%~1"=="" (
     python "%~dp0src\core.py" --init
+    echo.
     endlocal
+    pause
     exit /b 0
 )
 
@@ -19,7 +21,11 @@ python "%~dp0src\core.py" "%~1"
 if errorlevel 1 (
     echo.
     endlocal
+    pause
     exit /b 1
 )
 
+echo.
+endlocal
+pause
 exit /b 0

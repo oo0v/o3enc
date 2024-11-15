@@ -15,16 +15,29 @@ import tempfile
 
 # Config logging
 log_file_path = Path(__file__).parent / '..' / 'o3enc.log'
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    handlers=[
-        logging.StreamHandler(),
-        logging.FileHandler(log_file_path, mode='w', encoding='utf-8')
-    ]
-)
+
+# Create logger
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+# Create formatters and handlers
+console_formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s', 
+                                    datefmt='%Y-%m-%d %H:%M:%S')
+
+# Console handler
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(console_formatter)
+console_handler.setLevel(logging.INFO)
+logger.addHandler(console_handler)
+
+# File handler
+file_handler = logging.FileHandler(log_file_path, mode='w', encoding='utf-8')
+file_handler.setFormatter(console_formatter)
+file_handler.setLevel(logging.INFO)
+logger.addHandler(file_handler)
+
+# Prevent logging from propagating to root logger
+logger.propagate = False
 
 class O3EncoderError(Exception):
     pass
@@ -716,66 +729,46 @@ class O3Encoder:
             raise EncodingError("Output file system error")
 
     def cleanup(self):
-        logger.info("Starting cleanup process")
         cleanup_errors = []
         
         if hasattr(self, 'temp_dir') and self.temp_dir.exists():
             try:
-                shutil.rmtree(self.temp_dir, ignore_errors=False)
-                logger.info(f"Removed temporary directory: {self.temp_dir}")
+                shutil.rmtree(self.temp_dir)
             except Exception as e:
-                error_msg = f"Failed to remove temp directory: {str(e)}"
+                error_msg = f"Failed to remove temporary directory: {str(e)}"
                 cleanup_errors.append(error_msg)
                 logger.error(error_msg)
         
-        max_retries = 3
-        retry_delay = 1
-        
         ffmpeg_patterns = [
-            "ffmpeg2pass-*.log",
-            "ffmpeg2pass-*.log.*",
+            "ffmpeg2pass-*.log*",
             "*.mbtree",
             "*.temp",
-            "*.stats"
+            "*.stats",
+            "*.log.mbtree"
         ]
         
-        for retry in range(max_retries):
-            remaining_files = []
-            
-            for pattern in ffmpeg_patterns:
-                try:
-                    for log_file in Path().glob(pattern):
-                        try:
-                            # Try to open the file to check if it's still in use
-                            with open(log_file, 'a') as f:
-                                f.close()
-                            log_file.unlink()
-                            logger.debug(f"Removed FFmpeg temporary file: {log_file}")
-                        except (PermissionError, OSError):
-                            remaining_files.append(log_file)
-                            continue
-                except Exception as e:
-                    error_msg = f"Error processing pattern {pattern}: {str(e)}"
-                    cleanup_errors.append(error_msg)
-                    logger.error(error_msg)
-            
-            if not remaining_files:
-                break
-                
-            if retry < max_retries - 1:
-                logger.debug(f"Some files still in use, retrying in {retry_delay} seconds...")
-                time.sleep(retry_delay)
+        remaining_files = []
+        for pattern in ffmpeg_patterns:
+            try:
+                for temp_file in Path().glob(pattern):
+                    try:
+                        temp_file.unlink()
+                    except (PermissionError, OSError) as e:
+                        remaining_files.append(temp_file)
+            except Exception as e:
+                error_msg = f"Error processing pattern {pattern}: {str(e)}"
+                cleanup_errors.append(error_msg)
         
         if remaining_files:
             file_list = ', '.join(str(f) for f in remaining_files)
             error_msg = f"Could not remove some FFmpeg temporary files: {file_list}"
             cleanup_errors.append(error_msg)
-            logger.warning(error_msg)
-                
+        
         if cleanup_errors:
-            print("\nWarning: Some cleanup operations failed:")
             for error in cleanup_errors:
-                print(f"- {error}")
+                logger.error(error)
+        
+        logger.info("Cleanup completed")
 
 class PresetManager:
     def __init__(self):
@@ -1170,26 +1163,18 @@ def main():
             try:
                 encoder = O3Encoder("dummy")
                 encoder.initialize_environment()
-                print("\nPress Enter to exit...")
-                input()
                 return 0
             except Exception as e:
                 logger.error(f"Initialization Error: {str(e)}")
-                print("\nPress Enter to exit...")
-                input()
                 return 1
 
         if len(sys.argv) != 2:
             print("Usage: python o3enc.py <input_file>")
-            print("\nPress Enter to exit...")
-            input()
             return 1
 
         input_file = sys.argv[1]
         if not os.path.exists(input_file):
             print(f"Error: Input file not found: {input_file}")
-            print("\nPress Enter to exit...")
-            input()
             return 1
 
         encoder = None
@@ -1261,8 +1246,6 @@ def main():
 
                                 # Show results
                                 show_encoding_results(results, encoder.ffprobe)
-                                print("\nPress Enter to exit...")
-                                input()
                                 return 0
                                 
                             elif answer == 'N':
@@ -1296,18 +1279,12 @@ def main():
 
     except KeyboardInterrupt:
         logger.info("Operation cancelled by user")
-        print("\nPress Enter to exit...")
-        input()
         return 130
     except O3EncoderError as e:
         logger.error(f"Encoding error: {str(e)}")
-        print("\nPress Enter to exit...")
-        input()
         return 1
     except Exception as e:
         logger.error(f"Unexpected error: {str(e)}")
-        print("\nPress Enter to exit...")
-        input()
         return 1
 
 if __name__ == "__main__":

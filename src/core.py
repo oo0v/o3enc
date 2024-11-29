@@ -1,7 +1,6 @@
 import json
 import os
 import subprocess
-import colorama
 import sys
 from dataclasses import dataclass
 from pathlib import Path

@@ -1,6 +1,7 @@
 import json
 import os
 import subprocess
+import colorama
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -413,8 +414,7 @@ class O3Encoder:
                 
             if not result.stdout.strip():
                 logger.info("No audio track detected")
-                print("No audio track detected in the input file.")
-                print("Skipping audio normalization process.")
+                logger.info("Skipping audio normalization process.")
                 return None
                 
             # Get target values from preset
@@ -499,8 +499,7 @@ class O3Encoder:
         print(f"  True Peak Level : {audio_info['input_tp']:.1f} dB")
         print("  -------------------------------------")
 
-    def encode(self, preset: dict, output_file: Path, color_filters: str, 
-               audio_info: Optional[dict], video_info: dict) -> bool:
+    def encode(self, preset: dict, output_file: Path, color_filters: str, audio_info: Optional[dict], video_info: dict) -> bool:
         logger.info(f"Starting encoding process for preset: {preset.get('name', 'unknown')}")
         with error_context("Encoding failed", EncodingError):
             self._validate_encoding_inputs(preset, output_file, video_info)
@@ -519,15 +518,31 @@ class O3Encoder:
                 print(f"\nProcessing Preset: [{preset['name']}]")
                 print("----------------------------------------")
                 
-                # Run encoding passes
-                success = self._run_first_pass(preset, hwaccel_opts, filter_chain)
-                if not success:
-                    raise EncodingError("First pass encoding failed")
+                # デバッグ用のログ出力を追加
+                two_pass_value = preset.get('2pass', 'true')
+                logger.info(f"Raw 2pass value from preset: {two_pass_value!r}")
                 
-                success = self._run_second_pass(preset, hwaccel_opts, filter_chain, 
-                                              audio_filter, output_file)
-                if not success:
-                    raise EncodingError("Second pass encoding failed")
+                # 厳密な文字列比較を行う
+                use_2pass = str(two_pass_value).strip().lower() == 'true'
+                logger.info(f"Processed 2pass value: {use_2pass}")
+                
+                if use_2pass:
+                    # Run first pass if two-pass encoding is enabled
+                    logger.info("Starting two-pass encoding")
+                    success = self._run_first_pass(preset, hwaccel_opts, filter_chain)
+                    if not success:
+                        raise EncodingError("First pass encoding failed")
+                    
+                    # Run second pass
+                    success = self._run_second_pass(preset, hwaccel_opts, filter_chain, audio_filter, output_file)
+                    if not success:
+                        raise EncodingError("Second pass encoding failed")
+                else:
+                    # Run single pass encoding
+                    logger.info("Starting single-pass encoding")
+                    success = self._run_single_pass(preset, hwaccel_opts, filter_chain, audio_filter, output_file)
+                    if not success:
+                        raise EncodingError("Single pass encoding failed")
                 
                 # Verify output file
                 if not output_file.exists():
@@ -577,6 +592,7 @@ class O3Encoder:
                 output_dir.mkdir(parents=True)
             except OSError as e:
                 raise EncodingError(f"Failed to create output directory: {str(e)}")
+                
         if not os.access(output_dir, os.W_OK):
             raise EncodingError(f"Output directory is not writable: {output_dir}")
 
@@ -644,16 +660,54 @@ class O3Encoder:
     def _get_hwaccel_options(self, preset: dict) -> List[str]:
         try:
             hwaccel = preset.get('hwaccel', 'none')
-            if hwaccel == "none":
+            if hwaccel == "none" or not hwaccel:  # 空文字列もチェック
                 return []
                 
             hwaccel_opts = ["-hwaccel", hwaccel]
-            if hwaccel in ["cuda", "d3d11va", "qsv", "vaapi"]:
+            if hwaccel in ["cuda", "qsv", "d3d11va", "qsv", "vaapi"]:
                 hwaccel_opts.extend(["-hwaccel_output_format", hwaccel])
             return hwaccel_opts
             
         except KeyError:
             raise EncodingError("Invalid hardware acceleration settings in preset")
+
+    def _run_single_pass(self, preset: dict, hwaccel_opts: List[str], filter_chain: str, audio_filter: Optional[str], output_file: Path) -> bool:
+        try:
+            print("\nSingle Pass Encoding...")
+            
+            cmd = [
+                self.ffmpeg,
+                "-y",
+                "-loglevel", "warning",
+                "-stats",
+                *hwaccel_opts,
+                "-i", self.input_file,
+                "-c:v", preset['encoder'],
+                *preset['options'].split()
+            ]
+            
+            if filter_chain:
+                cmd.extend(["-vf", filter_chain])
+            
+            if audio_filter:
+                cmd.extend([
+                    "-c:a", "aac",
+                    "-b:a", "128k",
+                    "-ac", "2",
+                    "-af", audio_filter
+                ])
+            
+            cmd.append(str(output_file))
+            
+            print(f"ffmpeg {' '.join(cmd[1:])}\n")
+            result = subprocess.run(cmd)
+            if result.returncode != 0:
+                raise EncodingError("Single pass encoding failed")
+                
+            return True
+            
+        except subprocess.SubprocessError as e:
+            raise EncodingError("Single pass process error")
 
     def _run_first_pass(self, preset: dict, hwaccel_opts: List[str], filter_chain: str) -> bool:
         try:
@@ -685,8 +739,7 @@ class O3Encoder:
         except subprocess.SubprocessError as e:
             raise EncodingError("First pass process error")
 
-    def _run_second_pass(self, preset: dict, hwaccel_opts: List[str], filter_chain: str, 
-                        audio_filter: Optional[str], output_file: Path) -> bool:
+    def _run_second_pass(self, preset: dict, hwaccel_opts: List[str], filter_chain: str, audio_filter: Optional[str], output_file: Path) -> bool:
         try:
             print("\nSecond Pass Encoding...")
             
@@ -777,8 +830,11 @@ class PresetManager:
 
     def _parse_preset_section(self, config: configparser.ConfigParser, section: str) -> dict:
         try:
+            raw_2pass = config.get(section, '2pass', fallback='true')
+            
             preset = {
                 'name': section,
+                '2pass': raw_2pass,
                 'hwaccel': config.get(section, 'hwaccel', fallback='none'),
                 'encoder': config.get(section, 'encoder'),
                 'container': config.get(section, 'container', fallback='mp4'),

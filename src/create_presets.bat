@@ -287,7 +287,7 @@ echo options=-preset p7 -b:v 4300k -maxrate:v 4500k -bufsize:v 9000k -rc-lookahe
 echo target_lufs=-18
 echo target_lra=7
 echo target_tp=-2
-
+echo.
 echo [for-X]
 echo 2pass=true
 echo hwaccel=cuda
@@ -301,7 +301,7 @@ echo options=-preset p7 -b:v 8000k -maxrate:v 8000k -bufsize:v 16000k -rc-lookah
 echo target_lufs=-23
 echo target_lra=7
 echo target_tp=-2
-
+echo.
 echo [vp9]
 echo 2pass=false
 echo hwaccel=

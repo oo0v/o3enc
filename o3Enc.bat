@@ -3,7 +3,7 @@ chcp 65001 > nul
 setlocal enabledelayedexpansion
 
 echo ===============================================
-echo                        o3Enc 1.1.3
+echo                        o3Enc 1.1.4
 echo             NVEnc Encoding Utility
 echo      https://github.com/oo0v/o3enc
 echo ===============================================

@@ -691,8 +691,8 @@ class O3Encoder:
             
             if audio_filter:
                 cmd.extend([
-                    "-c:a", "aac",
-                    "-b:a", "128k",
+                    "-c:a", preset['audio_codec'],
+                    "-b:a", preset['audio_bitrate'],
                     "-ac", "2",
                     "-af", audio_filter
                 ])
@@ -758,8 +758,8 @@ class O3Encoder:
             
             if audio_filter:
                 second_pass.extend([
-                    "-c:a", "aac",
-                    "-b:a", "128k",
+                    "-c:a", preset['audio_codec'],
+                    "-b:a", preset['audio_bitrate'],
                     "-ac", "2",
                     "-af", audio_filter
                 ])
@@ -843,6 +843,8 @@ class PresetManager:
                 'pixfmt': config.get(section, 'pixfmt'),
                 'scale_flags': config.get(section, 'scale_flags', fallback='lanczos'),
                 'options': config.get(section, 'options'),
+                'audio_codec': config.get(section, 'audio_codec', fallback='aac'),
+                'audio_bitrate': config.get(section, 'audio_bitrate', fallback='128k'),
                 'target_lufs': config.getfloat(section, 'target_lufs', fallback=-18),
                 'target_lra': config.getfloat(section, 'target_lra', fallback=7),
                 'target_tp': config.getfloat(section, 'target_tp', fallback=-2)

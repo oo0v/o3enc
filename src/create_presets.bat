@@ -306,7 +306,7 @@ echo [vp9]
 echo 2pass=false
 echo hwaccel=
 echo encoder=libvpx-vp9
-echo container=mp4
+echo container=webm
 echo height=
 echo fps=
 echo pixfmt=yuv420p

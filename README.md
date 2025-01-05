@@ -4,20 +4,18 @@ o3Enc is a Python based tool for video encoding using FFmpeg, with CUDA accelera
 
 ## Requirements
 
-- Python
 - Windows 11 (PowerShell)
 - NVIDIA GPU (for default presets)
 
 ## Installation
 
 1. Extract the downloaded archive to your desired location
-2. Run `o3Enc.bat` - required components will be automatically installed on first run
+2. Run `o3Enc.exe` - required components will be automatically installed on first run
 
 ## Usage
 
 Either:
-- Drag and drop a video file onto `o3Enc.bat`
-- Run `o3Enc.bat <video file>`
+- Drag and drop a video file onto `o3Enc.exe`
 
 ## Flow
 
@@ -53,7 +51,7 @@ graph TD
 
 ## License
 
-CC0
+Unlicense
 
 - FFmpeg official site: https://ffmpeg.org/
 - gyan.dev (Windows builds): https://www.gyan.dev/ffmpeg/builds/

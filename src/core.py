@@ -75,7 +75,7 @@ class O3Encoder:
     def __init__(self, input_file: str):
         if not input_file or not isinstance(input_file, str):
             raise InitializationError("Invalid input file specified")
-            
+        
         self.input_file = input_file
         
         if getattr(sys, 'frozen', False):
@@ -88,30 +88,56 @@ class O3Encoder:
             temp_src = os.path.join(base_dir, "src")
             if not os.path.exists(temp_src):
                 os.makedirs(temp_src, exist_ok=True)
-                for file in ["initialize.bat", "create_presets.bat"]:
-                    src_file = os.path.join(self.src_dir, file)
-                    dst_file = os.path.join(temp_src, file)
-                    if os.path.exists(src_file):
-                        with open(src_file, 'rb') as f:
-                            content = f.read()
-                        with open(dst_file, 'wb') as f:
-                            f.write(content)
+            
+            if not os.path.exists(os.path.join(temp_src, "create_presets.bat")):
+                src_file = os.path.join(self.src_dir, "create_presets.bat")
+                dst_file = os.path.join(temp_src, "create_presets.bat")
+                if os.path.exists(src_file):
+                    with open(src_file, 'rb') as f:
+                        content = f.read()
+                    with open(dst_file, 'wb') as f:
+                        f.write(content)
+            
+            if not os.path.exists(os.path.join(temp_src, "initialize.bat")):
+                src_file = os.path.join(self.src_dir, "initialize.bat")
+                dst_file = os.path.join(temp_src, "initialize.bat")
+                if os.path.exists(src_file):
+                    with open(src_file, 'rb') as f:
+                        content = f.read()
+                    with open(dst_file, 'wb') as f:
+                        f.write(content)
             
             self.src_dir = temp_src
         else:
             self.root_dir = Path(__file__).parent.parent
             self.src_dir = os.path.join(self.root_dir, "src")
             self.bin_dir = os.path.join(self.root_dir, "bin")
-            
+        
         self.ffmpeg = os.path.join(self.bin_dir, "ffmpeg.exe")
         self.ffprobe = os.path.join(self.bin_dir, "ffprobe.exe")
         
         try:
-            self.temp_dir = Path(tempfile.gettempdir()) / f"o3enc_{os.getpid()}"
-            self.temp_dir.mkdir(exist_ok=True, parents=True)
-            logger.info(f"Created temporary directory: {self.temp_dir}")
+            self.temp_dir = Path(tempfile.gettempdir()) / "o3enc_temp"
+            if not self.temp_dir.exists():
+                self.temp_dir.mkdir(parents=True)
+                logger.info(f"Created temporary directory: {self.temp_dir}")
+            else:
+                logger.info(f"Using existing temporary directory: {self.temp_dir}")
+                
         except Exception as e:
-            raise InitializationError(f"Failed to create temporary directory: {str(e)}")
+            raise InitializationError(f"Failed to setup temporary directory: {str(e)}")
+
+    def cleanup(self):
+        try:
+            if hasattr(self, 'temp_dir') and self.temp_dir.exists():
+                try:
+                    shutil.rmtree(self.temp_dir)
+                    logger.info(f"Removed temporary directory: {self.temp_dir}")
+                except Exception as e:
+                    logger.error(f"Failed to remove temporary directory: {str(e)}")
+                    
+        except Exception as e:
+            logger.error(f"Error during cleanup: {str(e)}")
 
     def initialize_environment(self):
         logger.info("Initializing system environment...")
@@ -1276,8 +1302,8 @@ def main():
     try:
         # Display banner
         print("===============================================")
-        print("                        o3Enc 1.2.0")
-        print("             NVEnc Encoding Utility")
+        print("                        o3Enc 1.2.1")
+        print("            FFmpeg Encoding Utility")
         print("      https://github.com/oo0v/o3enc")
         print("===============================================")
         print()

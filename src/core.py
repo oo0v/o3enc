@@ -1,7 +1,6 @@
 import json
 import os
 import subprocess
-import colorama
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -65,17 +64,47 @@ def error_context(error_msg: str, error_class=O3EncoderError):
         logger.error(f"{error_msg}: {str(e)}")
         raise error_class(f"{error_msg}: {str(e)}") from e
 
+import sys
+import os
+import subprocess
+from pathlib import Path
+import tempfile
+import logging
+
 class O3Encoder:
     def __init__(self, input_file: str):
         if not input_file or not isinstance(input_file, str):
             raise InitializationError("Invalid input file specified")
             
         self.input_file = input_file
-        self.root_dir = Path(__file__).parent.parent
-        self.src_dir = Path(__file__).parent
-        self.bin_dir = self.root_dir / "bin"
-        self.ffmpeg = str(self.bin_dir / "ffmpeg.exe")
-        self.ffprobe = str(self.bin_dir / "ffprobe.exe")
+        
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+            bundle_dir = getattr(sys, '_MEIPASS', base_dir)
+            self.root_dir = base_dir
+            self.src_dir = os.path.join(bundle_dir, "src")
+            self.bin_dir = os.path.join(base_dir, "bin")
+            
+            temp_src = os.path.join(base_dir, "src")
+            if not os.path.exists(temp_src):
+                os.makedirs(temp_src, exist_ok=True)
+                for file in ["initialize.bat", "create_presets.bat"]:
+                    src_file = os.path.join(self.src_dir, file)
+                    dst_file = os.path.join(temp_src, file)
+                    if os.path.exists(src_file):
+                        with open(src_file, 'rb') as f:
+                            content = f.read()
+                        with open(dst_file, 'wb') as f:
+                            f.write(content)
+            
+            self.src_dir = temp_src
+        else:
+            self.root_dir = Path(__file__).parent.parent
+            self.src_dir = os.path.join(self.root_dir, "src")
+            self.bin_dir = os.path.join(self.root_dir, "bin")
+            
+        self.ffmpeg = os.path.join(self.bin_dir, "ffmpeg.exe")
+        self.ffprobe = os.path.join(self.bin_dir, "ffprobe.exe")
         
         try:
             self.temp_dir = Path(tempfile.gettempdir()) / f"o3enc_{os.getpid()}"
@@ -104,8 +133,8 @@ class O3Encoder:
     def _check_required_components(self):
         missing_tools = []
         for tool in ["ffmpeg", "ffprobe"]:
-            exe_path = self.bin_dir / f"{tool}.exe"
-            if not exe_path.exists():
+            exe_path = os.path.join(self.bin_dir, f"{tool}.exe")
+            if not os.path.exists(exe_path):
                 missing_tools.append(tool)
                 logger.warning(f"{tool}.exe not found in bin directory")
 
@@ -113,14 +142,18 @@ class O3Encoder:
             print(f"\nRequired tools are missing: {', '.join(missing_tools)}")
             print("These tools need to be installed to continue.")
             
-            init_script = self.src_dir / "initialize.bat"
-            if not init_script.exists():
-                raise InitializationError("initialize.bat not found in src directory")
+            init_script = os.path.join(self.src_dir, "initialize.bat")
+            if not os.path.exists(init_script):
+                raise InitializationError(f"initialize.bat not found in src directory ({init_script})")
                 
             try:
-                self.bin_dir.mkdir(exist_ok=True, parents=True)
+                os.makedirs(self.bin_dir, exist_ok=True)
                 
-                process = subprocess.run([str(init_script)])
+                logger.info(f"Running initialization script: {init_script}")
+                logger.info(f"Current directory: {os.getcwd()}")
+                logger.info(f"Script exists: {os.path.exists(init_script)}")
+                
+                process = subprocess.run([init_script])
                 
                 if process.returncode == 2:  # User declined installation
                     logger.info("User declined to install required tools")
@@ -130,7 +163,7 @@ class O3Encoder:
                         f"Initialization script failed with return code: {process.returncode}"
                     )
                     
-                if not all((self.bin_dir / f"{tool}.exe").exists() for tool in missing_tools):
+                if not all(os.path.exists(os.path.join(self.bin_dir, f"{tool}.exe")) for tool in missing_tools):
                     raise InitializationError(
                         f"Failed to install required tools: {', '.join(missing_tools)}"
                     )
@@ -518,11 +551,9 @@ class O3Encoder:
                 print(f"\nProcessing Preset: [{preset['name']}]")
                 print("----------------------------------------")
                 
-                # デバッグ用のログ出力を追加
                 two_pass_value = preset.get('2pass', 'true')
                 logger.info(f"Raw 2pass value from preset: {two_pass_value!r}")
                 
-                # 厳密な文字列比較を行う
                 use_2pass = str(two_pass_value).strip().lower() == 'true'
                 logger.info(f"Processed 2pass value: {use_2pass}")
                 
@@ -660,7 +691,7 @@ class O3Encoder:
     def _get_hwaccel_options(self, preset: dict) -> List[str]:
         try:
             hwaccel = preset.get('hwaccel', 'none')
-            if hwaccel == "none" or not hwaccel:  # 空文字列もチェック
+            if hwaccel == "none" or not hwaccel:
                 return []
                 
             hwaccel_opts = ["-hwaccel", hwaccel]
@@ -824,17 +855,117 @@ class O3Encoder:
 
 class PresetManager:
     def __init__(self):
-        self.root_dir = Path(__file__).parent.parent
-        self.preset_file = self.root_dir / "presets.ini"
-        self.presets: Dict[str, dict] = {}
-
-    def _parse_preset_section(self, config: configparser.ConfigParser, section: str) -> dict:
-        try:
-            raw_2pass = config.get(section, '2pass', fallback='true')
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+            bundle_dir = getattr(sys, '_MEIPASS', base_dir)
+            self.root_dir = base_dir
+            self.src_dir = os.path.join(bundle_dir, "src")
             
+            temp_src = os.path.join(base_dir, "src")
+            if not os.path.exists(temp_src):
+                os.makedirs(temp_src, exist_ok=True)
+            
+            if not os.path.exists(os.path.join(temp_src, "create_presets.bat")):
+                src_file = os.path.join(self.src_dir, "create_presets.bat")
+                dst_file = os.path.join(temp_src, "create_presets.bat")
+                if os.path.exists(src_file):
+                    with open(src_file, 'rb') as f:
+                        content = f.read()
+                    with open(dst_file, 'wb') as f:
+                        f.write(content)
+            
+            self.src_dir = temp_src
+        else:
+            self.root_dir = Path(__file__).parent.parent
+            self.src_dir = os.path.join(self.root_dir, "src")
+            
+        self.preset_file = os.path.join(self.root_dir, "presets.ini")
+        self.presets = {}
+
+    def create_presets(self):
+        try:
+            create_presets_bat = os.path.join(self.src_dir, "create_presets.bat")
+            if not os.path.exists(create_presets_bat):
+                raise PresetError("create_presets.bat not found")
+                
+            try:
+                result = subprocess.run(
+                    [create_presets_bat], 
+                    capture_output=True, 
+                    text=True, 
+                    check=True
+                )
+                if not os.path.exists(self.preset_file):
+                    raise PresetError(
+                        f"Failed to create presets.ini:\n{result.stderr}"
+                    )
+                logger.info("Created default presets")
+            except subprocess.CalledProcessError as e:
+                raise PresetError(f"create_presets.bat failed:\n{e.stderr}")
+                
+        except Exception as e:
+            raise PresetError(f"Failed to create presets: {str(e)}")
+
+    def load_presets(self):
+        try:
+            if not os.path.exists(self.preset_file):
+                logger.warning("Presets file not found")
+                logger.info("Creating default presets...")
+                self.create_presets()
+                
+            # Read the entire file
+            try:
+                with open(self.preset_file, 'r', encoding='utf-8') as f:
+                    lines = f.readlines()
+            except (OSError, UnicodeDecodeError) as e:
+                raise PresetError(f"Failed to read presets file: {str(e)}")
+
+            # Find preset sections
+            try:
+                preset_start = -1
+                for i, line in enumerate(lines):
+                    if line.strip() == 'preset_start:':
+                        preset_start = i
+                        break
+                        
+                if preset_start == -1:
+                    raise PresetError("No preset_start: marker found in presets.ini")
+
+                # Create temporary ini file
+                temp_ini = self.preset_file.replace('.ini', '.temp.ini')
+                try:
+                    with open(temp_ini, 'w', encoding='utf-8') as f:
+                        f.writelines(lines[preset_start+1:])
+                    
+                    # Load presets
+                    config = configparser.ConfigParser()
+                    config.read(temp_ini, encoding='utf-8')
+                    
+                    for section in config.sections():
+                        self.presets[section] = self._parse_preset_section(config, section)
+                        
+                    if not self.presets:
+                        raise PresetError("No valid presets found")
+                        
+                finally:
+                    # Cleanup temporary file
+                    if os.path.exists(temp_ini):
+                        try:
+                            os.unlink(temp_ini)
+                        except OSError as e:
+                            logger.warning(f"Failed to remove temporary preset file: {str(e)}")
+                            
+            except Exception as e:
+                raise PresetError(f"Failed to process presets: {str(e)}")
+                
+        except Exception as e:
+            raise PresetError(f"Failed to load presets: {str(e)}")
+
+    def _parse_preset_section(self, config, section):
+        try:
             preset = {
                 'name': section,
-                '2pass': raw_2pass,
+                '2pass': config.get(section, '2pass', fallback='true'),
                 'hwaccel': config.get(section, 'hwaccel', fallback='none'),
                 'encoder': config.get(section, 'encoder'),
                 'container': config.get(section, 'container', fallback='mp4'),
@@ -861,79 +992,6 @@ class PresetManager:
             
         except configparser.Error as e:
             raise PresetError(f"Error parsing preset {section}: {str(e)}")
-
-    def create_presets(self):
-        with error_context("Failed to create presets", PresetError):
-            create_presets_bat = self.root_dir / "src" / "create_presets.bat"
-            if not create_presets_bat.exists():
-                raise PresetError("create_presets.bat not found")
-                
-            try:
-                result = subprocess.run(
-                    [str(create_presets_bat)], 
-                    capture_output=True, 
-                    text=True, 
-                    check=True
-                )
-                if not self.preset_file.exists():
-                    raise PresetError(
-                        f"Failed to create presets.ini:\n{result.stderr}"
-                    )
-                logger.info("Created default presets")
-            except subprocess.CalledProcessError as e:
-                raise PresetError(f"create_presets.bat failed:\n{e.stderr}")
-
-    def load_presets(self) -> None:
-        with error_context("Failed to load presets", PresetError):
-            if not self.preset_file.exists():
-                logger.warning("Presets file not found")
-                logger.info("Creating default presets...")
-                self.create_presets()
-                
-            try:
-                # Read the entire file
-                with open(self.preset_file, 'r', encoding='utf-8') as f:
-                    lines = f.readlines()
-            except (OSError, UnicodeDecodeError) as e:
-                raise PresetError(f"Failed to read presets file: {str(e)}")
-
-            # Find preset sections
-            try:
-                preset_start = -1
-                for i, line in enumerate(lines):
-                    if line.strip() == 'preset_start:':
-                        preset_start = i
-                        break
-                        
-                if preset_start == -1:
-                    raise PresetError("No preset_start: marker found in presets.ini")
-
-                # Create temporary ini file
-                temp_ini = self.preset_file.with_suffix('.temp.ini')
-                try:
-                    with open(temp_ini, 'w', encoding='utf-8') as f:
-                        f.writelines(lines[preset_start+1:])
-                    
-                    # Load presets
-                    config = configparser.ConfigParser()
-                    config.read(temp_ini, encoding='utf-8')
-                    
-                    for section in config.sections():
-                        self.presets[section] = self._parse_preset_section(config, section)
-                        
-                    if not self.presets:
-                        raise PresetError("No valid presets found")
-                        
-                finally:
-                    # Cleanup temporary file
-                    if temp_ini.exists():
-                        try:
-                            temp_ini.unlink()
-                        except OSError as e:
-                            logger.warning(f"Failed to remove temporary preset file: {str(e)}")
-                            
-            except Exception as e:
-                raise PresetError(f"Failed to process presets: {str(e)}")
 
     def show_preset_menu(self) -> List[dict]:
         logger.info("Showing preset selection menu")
@@ -1216,32 +1274,47 @@ def show_encoding_results(results: Dict[str, dict], ffprobe_path: str):
 
 def main():
     try:
-        if len(sys.argv) == 2 and sys.argv[1] == "--init":
+        # Display banner
+        print("===============================================")
+        print("                        o3Enc 1.2.0")
+        print("             NVEnc Encoding Utility")
+        print("      https://github.com/oo0v/o3enc")
+        print("===============================================")
+        print()
+
+        # Check arguments
+        if len(sys.argv) == 1 or (len(sys.argv) == 2 and sys.argv[1] == "--init"):
             try:
                 encoder = O3Encoder("dummy")
                 encoder.initialize_environment()
+                input("\nPress Enter to continue...")
                 return 0
             except Exception as e:
                 logger.error(f"Initialization Error: {str(e)}")
+                input("\nPress Enter to continue...")
                 return 1
 
+        # Process input file
         if len(sys.argv) != 2:
-            print("Usage: python o3enc.py <input_file>")
+            print("Usage: o3enc <input_file>")
+            input("\nPress Enter to continue...")
             return 1
 
         input_file = sys.argv[1]
         if not os.path.exists(input_file):
             print(f"Error: Input file not found: {input_file}")
+            input("\nPress Enter to continue...")
             return 1
 
+        # Normal processing
         encoder = None
         try:
-            # Initialize and analyze video
+            # Initialize encoder and analyze video
             encoder = O3Encoder(input_file)
             encoder.initialize_environment()
             video_info = encoder.analyze_video()
             colorspace, colorrange = encoder.get_color_settings(video_info)
-            
+
             # Set up color filters
             color_filters = ""
             if colorspace != "auto":
@@ -1303,6 +1376,7 @@ def main():
 
                                 # Show results
                                 show_encoding_results(results, encoder.ffprobe)
+                                input("\nPress Enter to continue...")
                                 return 0
                                 
                             elif answer == 'N':
@@ -1325,6 +1399,18 @@ def main():
                     print()
                     continue
 
+        except KeyboardInterrupt:
+            logger.info("Operation cancelled by user")
+            input("\nPress Enter to continue...")
+            return 130
+        except O3EncoderError as e:
+            logger.error(f"Encoding error: {str(e)}")
+            input("\nPress Enter to continue...")
+            return 1
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}")
+            input("\nPress Enter to continue...")
+            return 1
         finally:
             # Ensure cleanup happens even if an error occurred
             if encoder:
@@ -1332,16 +1418,10 @@ def main():
                     encoder.cleanup()
                 except Exception as e:
                     logger.error(f"Cleanup failed: {str(e)}")
-                    print(f"\nWarning: Cleanup failed: {str(e)}")
 
-    except KeyboardInterrupt:
-        logger.info("Operation cancelled by user")
-        return 130
-    except O3EncoderError as e:
-        logger.error(f"Encoding error: {str(e)}")
-        return 1
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
+        logger.error(f"Unhandled error: {str(e)}")
+        input("\nPress Enter to continue...")
         return 1
 
 if __name__ == "__main__":

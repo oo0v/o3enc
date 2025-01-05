@@ -42,7 +42,7 @@ graph TD
     AudioAnalysis --> Encode
     AudioCheck -->|No| Encode
     
-    Encode[2-Pass Encoding] --> Complete([Complete])
+    Encode[Encoding] --> Complete([Complete])
 ```
 
 ## Included Presets

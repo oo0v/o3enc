@@ -47,7 +47,8 @@ graph TD
 
 - H.264 presets for basic use
 - H.264/HEVC presets for High-Quality Archiving
-- Optimized presets for specific platforms (iwara.tv)
+- VP9 and AV1
+- Optimized presets for specific platforms (X, iwara.tv)
 
 ## License
 

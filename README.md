@@ -40,7 +40,7 @@ target_lra=      # Target Loudness Range (LU, lower = more consistent volume)
 target_tp=       # True Peak target (dB, prevents clipping)
 ```
 
-- Sample1(H.264 with NVENC)
+- Sample1 (H.264 with NVENC)
 ```
 [Basic-H264]
 2pass=true
@@ -59,7 +59,7 @@ target_lra=7
 target_tp=-2
 ```
 
-- Sample2(AV1-1080p30fps)
+- Sample2 (AV1-1080p30fps)
 ```
 [AV1]
 2pass=false

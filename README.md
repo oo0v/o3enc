@@ -31,7 +31,7 @@ container=       # Container format
 height=          # Output height (width is automatically calculated)
 fps=             # Frame rate (space = same as input)
 pixfmt=          # Pixel format (space = auto)
-scale_flags=     # Scaling algorithm (If you use scaling in option)
+scale_flags=     # Scaling algorithm (If you use scaling)
 options=         # FFmpeg encoding options (For advanced users)
 audio_codec=     # Audio codec
 audio_bitrate=   # Audio bitrate
@@ -59,14 +59,15 @@ target_lra=7
 target_tp=-2
 ```
 
-- Sample2(AV1)
+- Sample2(AV1-1080p30fps)
 ```
+[AV1]
 2pass=false
 hwaccel=
 encoder=libaom-av1
 container=webm
-height=
-fps=
+height=1080
+fps=30
 pixfmt=yuv420p
 scale_flags=lanczos
 options=-cpu-used 4 -b:v 8000k -maxrate:v 16000k -bufsize:v 16000k -row-mt 1 -tiles 1x1 -strict experimental -lag-in-frames 35 -aq-mode 1

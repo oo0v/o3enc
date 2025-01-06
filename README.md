@@ -14,8 +14,29 @@ o3Enc is a Python based tool for video encoding using FFmpeg, with CUDA accelera
 
 ## Usage
 
-Either:
-- Drag and drop a video file onto `o3Enc.exe`
+Drag and drop a video file onto `o3Enc.exe`
+
+## Presets Usage
+
+Presets are defined in `presets.ini` with the following format:
+
+```
+[example_preset_name]
+2pass=false                # Use two-pass encoding (true/false)
+hwaccel=                   # Hardware acceleration (cuda, none, etc.)
+encoder=libaom-av1         # Encoder
+container=webm             # Container format
+height=1080                # Output height (width is automatically calculated)
+fps=30                     # Frame rate (space = same as input)
+pixfmt=yuv420p             # Pixel format (space = auto)
+scale_flags=lanczos        # Scaling algorithm (If you use scaling in option)
+options=                   # FFmpeg encoding options (For advanced users)
+audio_codec=libopus        # Audio codec
+audio_bitrate=128k         # Audio bitrate
+target_lufs=-18            # Audio normalization target (Integrated Loudness)
+target_lra=7               # Target Loudness Range (LU, lower = more consistent volume)
+target_tp=-2               # True Peak target (dB, prevents clipping)
+```
 
 ## Flow
 

@@ -1,10 +1,10 @@
 # o3Enc
 
-o3Enc is a Python based tool for video encoding using FFmpeg, with CUDA acceleration and customizable presets.
+o3Enc is a Python based tool for video encoding using FFmpeg.
 
 ## Requirements
 
-- Windows 11 (PowerShell)
+- Windows 10+ (PowerShell)
 - NVIDIA GPU (for default presets)
 
 ## Installation
@@ -14,7 +14,9 @@ o3Enc is a Python based tool for video encoding using FFmpeg, with CUDA accelera
 
 ## Usage
 
-Drag and drop a video file onto `o3Enc.exe`
+Either:
+- Drag and drop a video file onto `o3Enc.exe`
+- Run `o3Enc.exe <video file>`
 
 ## Presets Usage
 
@@ -22,20 +24,57 @@ Presets are defined in `presets.ini` with the following format:
 
 ```
 [example_preset_name]
-2pass=false                # Use two-pass encoding (true/false)
-hwaccel=                   # Hardware acceleration (cuda, none, etc.)
-encoder=libaom-av1         # Encoder
-container=webm             # Container format
-height=1080                # Output height (width is automatically calculated)
-fps=30                     # Frame rate (space = same as input)
-pixfmt=yuv420p             # Pixel format (space = auto)
-scale_flags=lanczos        # Scaling algorithm (If you use scaling in option)
-options=                   # FFmpeg encoding options (For advanced users)
-audio_codec=libopus        # Audio codec
-audio_bitrate=128k         # Audio bitrate
-target_lufs=-18            # Audio normalization target (Integrated Loudness)
-target_lra=7               # Target Loudness Range (LU, lower = more consistent volume)
-target_tp=-2               # True Peak target (dB, prevents clipping)
+2pass=           # Use two-pass encoding (true/false)
+hwaccel=         # Hardware acceleration (cuda, none, etc.)
+encoder=         # Encoder
+container=       # Container format
+height=          # Output height (width is automatically calculated)
+fps=             # Frame rate (space = same as input)
+pixfmt=          # Pixel format (space = auto)
+scale_flags=     # Scaling algorithm (If you use scaling in option)
+options=         # FFmpeg encoding options (For advanced users)
+audio_codec=     # Audio codec
+audio_bitrate=   # Audio bitrate
+target_lufs=     # Audio normalization target (Integrated Loudness)
+target_lra=      # Target Loudness Range (LU, lower = more consistent volume)
+target_tp=       # True Peak target (dB, prevents clipping)
+```
+
+- Sample1(H.264 with NVENC)
+```
+[Basic-H264]
+2pass=true
+hwaccel=cuda
+encoder=h264_nvenc
+container=mp4
+height=
+fps=
+pixfmt=yuv420p
+scale_flags=
+options=-preset p6 -b:v 10000k -maxrate:v 10000k -bufsize:v 20000k -bf 2 -refs 16 -b_ref_mode each
+audio_codec=aac
+audio_bitrate=128k
+target_lufs=-18
+target_lra=7
+target_tp=-2
+```
+
+- Sample2(AV1)
+```
+2pass=false
+hwaccel=
+encoder=libaom-av1
+container=webm
+height=
+fps=
+pixfmt=yuv420p
+scale_flags=lanczos
+options=-cpu-used 4 -b:v 8000k -maxrate:v 16000k -bufsize:v 16000k -row-mt 1 -tiles 1x1 -strict experimental -lag-in-frames 35 -aq-mode 1
+audio_codec=libopus
+audio_bitrate=128k
+target_lufs=-18
+target_lra=7
+target_tp=-2
 ```
 
 ## Flow

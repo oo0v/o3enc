@@ -10,7 +10,7 @@ o3Enc is a Python based tool for video encoding using FFmpeg.
 ## Installation
 
 1. Extract the downloaded archive to your desired location
-2. Run `o3Enc.exe` - required components will be automatically installed on first run
+2. Run `o3Enc.exe` - Required components will be automatically installed in the o3enc/bin/ directory when you first run it
 
 ## Usage
 

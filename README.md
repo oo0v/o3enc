@@ -78,6 +78,13 @@ target_lra=7
 target_tp=-2
 ```
 
+## Included Presets
+
+- H.264 presets for basic use
+- H.264/HEVC presets for High-Quality Archiving
+- VP9 and AV1
+- Optimized presets for specific platforms (X, iwara.tv)
+
 ## Flow
 
 ```mermaid
@@ -103,13 +110,6 @@ graph TD
     
     Encode[Encoding] --> Complete([Complete])
 ```
-
-## Included Presets
-
-- H.264 presets for basic use
-- H.264/HEVC presets for High-Quality Archiving
-- VP9 and AV1
-- Optimized presets for specific platforms (X, iwara.tv)
 
 ## License
 

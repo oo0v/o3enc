@@ -449,102 +449,111 @@ class O3Encoder:
         print()
 
     def analyze_audio(self, preset: dict) -> Optional[dict]:
-        logger.info("Starting audio analysis...")
-        print("\nAnalyzing audio levels...")
-        
-        with error_context("Failed to analyze audio", AudioAnalysisError):
-            if not isinstance(preset, dict):
-                raise AudioAnalysisError("Invalid preset format")
-                
-            # Check if file has audio
-            cmd = [
-                self.ffprobe,
-                "-v", "error",
-                "-select_streams", "a",
-                "-show_entries", "stream=codec_name",
-                "-of", "csv=p=0",
-                self.input_file
-            ]
-            
-            try:
-                result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', check=True)
-            except subprocess.CalledProcessError as e:
-                raise AudioAnalysisError(f"Failed to probe audio stream: {e.stderr}")
-                
-            if not result.stdout.strip():
-                logger.info("No audio track detected")
-                logger.info("Skipping audio normalization process.")
-                return None
-                
-            # Get target values from preset
-            try:
-                target_lufs = float(preset.get("target_lufs", -18))
-                target_lra = float(preset.get("target_lra", 7))
-                target_tp = float(preset.get("target_tp", -2))
-            except (ValueError, TypeError) as e:
-                raise AudioAnalysisError(f"Invalid audio target values in preset: {str(e)}")
-                
-            # Analyze audio levels
-            cmd = [
-                self.ffmpeg,
-                "-v", "info",
-                "-stats",
-                "-i", self.input_file,
-                "-af", f"loudnorm=I={target_lufs}:LRA={target_lra}:print_format=json",
-                "-f", "null", "-"
-            ]
-            
-            try:
-                process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, encoding='utf-8')
-                
-                stderr_lines = []
-                while True:
-                    line = process.stderr.readline()
-                    if not line and process.poll() is not None:
-                        break
-                    if line.startswith("frame="):
-                        print(f"\r{line.strip()}", end='', flush=True)
-                    else:
-                        stderr_lines.append(line)
-                
-                print()
-                process.wait()
-                if process.returncode != 0:
-                    raise AudioAnalysisError(f"Audio analysis failed")
-                
-                stderr = ''.join(stderr_lines)
-                json_start = stderr.find("{")
-                json_end = stderr.rfind("}") + 1
-                if json_start == -1 or json_end == 0:
-                    raise AudioAnalysisError("Audio analysis data not found in output")
-                
-                json_str = stderr[json_start:json_end]
-                data = json.loads(json_str)
-                
-                required_fields = ["input_i", "input_lra", "input_tp", "input_thresh", "target_offset"]
-                missing_fields = [field for field in required_fields if field not in data]
-                if missing_fields:
-                    raise AudioAnalysisError(f"Missing audio analysis data: {', '.join(missing_fields)}")
-                
-                try:
-                    audio_info = {
-                        "input_i": float(data["input_i"]),
-                        "input_lra": float(data["input_lra"]),
-                        "input_tp": float(data["input_tp"]),
-                        "input_thresh": float(data["input_thresh"]),
-                        "target_offset": float(data["target_offset"])
-                    }
-                except (ValueError, TypeError) as e:
-                    raise AudioAnalysisError(f"Invalid audio measurement values: {str(e)}")
-                
-                self._print_audio_info(audio_info, target_lufs, target_lra, target_tp)
-                logger.info("Audio analysis completed successfully")
-                return audio_info
-                
-            except json.JSONDecodeError as e:
-                raise AudioAnalysisError(f"Failed to parse audio analysis data: {str(e)}")
-            except subprocess.CalledProcessError as e:
-                raise AudioAnalysisError(f"Audio analysis process failed: {e.stderr}")
+       logger.info("Starting audio analysis...")
+       print("\nAnalyzing audio levels...")
+       
+       with error_context("Failed to analyze audio", AudioAnalysisError):
+           if not isinstance(preset, dict):
+               raise AudioAnalysisError("Invalid preset format")
+               
+           # Check if file has audio
+           cmd = [
+               self.ffprobe,
+               "-v", "error", 
+               "-select_streams", "a",
+               "-show_entries", "stream=codec_name",
+               "-of", "csv=p=0",
+               self.input_file
+           ]
+           
+           try:
+               result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', check=True)
+           except subprocess.CalledProcessError as e:
+               raise AudioAnalysisError(f"Failed to probe audio stream: {e.stderr}")
+               
+           if not result.stdout.strip():
+               logger.info("No audio track detected")
+               print("No audio track detected - skipping audio processing")
+               return None
+               
+           # Get target values from preset
+           try:
+               target_lufs = float(preset.get("target_lufs", -18))
+               target_lra = float(preset.get("target_lra", 7))
+               target_tp = float(preset.get("target_tp", -2))
+           except (ValueError, TypeError) as e:
+               raise AudioAnalysisError(f"Invalid audio target values in preset: {str(e)}")
+               
+           # Analyze audio levels
+           cmd = [
+               self.ffmpeg,
+               "-v", "info",
+               "-stats",
+               "-i", self.input_file,
+               "-af", f"loudnorm=I={target_lufs}:LRA={target_lra}:TP={target_tp}:print_format=json",
+               "-f", "null", "-"
+           ]
+           
+           try:
+               process = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                                       universal_newlines=True, encoding='utf-8')
+               
+               stderr_lines = []
+               while True:
+                   line = process.stderr.readline()
+                   if not line and process.poll() is not None:
+                       break
+                   if line.startswith("frame="):
+                       print(f"\r{line.strip()}", end='', flush=True)
+                   else:
+                       stderr_lines.append(line)
+               
+               print()  
+               process.wait()
+               if process.returncode != 0:
+                   raise AudioAnalysisError(f"Audio analysis failed")
+               
+               stderr = ''.join(stderr_lines)
+               json_start = stderr.find("{")
+               json_end = stderr.rfind("}") + 1
+               if json_start == -1 or json_end == 0:
+                   raise AudioAnalysisError("Audio analysis data not found in output")
+               
+               json_str = stderr[json_start:json_end]
+               data = json.loads(json_str)
+               
+               required_fields = ["input_i", "input_lra", "input_tp", "input_thresh", "target_offset"]
+               missing_fields = [field for field in required_fields if field not in data]
+               if missing_fields:
+                   raise AudioAnalysisError(f"Missing audio analysis data: {', '.join(missing_fields)}")
+               
+               try:
+                   audio_info = {
+                       "input_i": float(data["input_i"]),
+                       "input_lra": float(data["input_lra"]),
+                       "input_tp": float(data["input_tp"]),
+                       "input_thresh": float(data["input_thresh"]),
+                       "target_offset": float(data["target_offset"])
+                   }
+                   
+                   # Check for invalid measurements (-inf values)
+                   if (audio_info["input_i"] == float("-inf") or 
+                       audio_info["input_tp"] == float("-inf")):
+                       logger.info("Invalid audio measurements detected - skipping audio processing")
+                       print("\nInvalid audio measurements - skipping audio normalization")
+                       return None
+                       
+                   self._print_audio_info(audio_info, target_lufs, target_lra, target_tp)
+                   logger.info("Audio analysis completed successfully")
+                   return audio_info
+                   
+               except (ValueError, TypeError) as e:
+                   raise AudioAnalysisError(f"Invalid audio measurement values: {str(e)}")
+               
+           except json.JSONDecodeError as e:
+               raise AudioAnalysisError(f"Failed to parse audio analysis data: {str(e)}")
+           except subprocess.CalledProcessError as e:
+               raise AudioAnalysisError(f"Audio analysis process failed: {e.stderr}")
 
     def _print_audio_info(self, audio_info: dict, target_lufs: float, target_lra: float, target_tp: float):
         print("\nAudio Analysis Results:")
@@ -564,12 +573,23 @@ class O3Encoder:
             self._validate_encoding_inputs(preset, output_file, video_info)
             
             try:
-                # Build filter chain safely
+                # Build video filter chain safely
                 filters = self._build_filter_chain(preset, video_info, color_filters)
                 filter_chain = ",".join(filters)
                 
-                # Build audio filter if needed
-                audio_filter = self._build_audio_filter(preset, audio_info) if audio_info else None
+                # Configure audio parameters based on presence of audio track
+                audio_params = []
+                if audio_info is not None:
+                    audio_filter = self._build_audio_filter(preset, audio_info)
+                    audio_params = [
+                        "-c:a", preset['audio_codec'],
+                        "-b:a", preset['audio_bitrate'],
+                        "-ac", "2",
+                        "-af", audio_filter
+                    ]
+                else:
+                    # Remove audio stream if no audio track is present
+                    audio_params = ["-an"]
                 
                 # Get hardware acceleration options
                 hwaccel_opts = self._get_hwaccel_options(preset)
@@ -577,6 +597,7 @@ class O3Encoder:
                 print(f"\nProcessing Preset: [{preset['name']}]")
                 print("----------------------------------------")
                 
+                # Parse 2pass encoding setting from preset
                 two_pass_value = preset.get('2pass', 'true')
                 logger.info(f"Raw 2pass value from preset: {two_pass_value!r}")
                 
@@ -590,14 +611,16 @@ class O3Encoder:
                     if not success:
                         raise EncodingError("First pass encoding failed")
                     
-                    # Run second pass
-                    success = self._run_second_pass(preset, hwaccel_opts, filter_chain, audio_filter, output_file)
+                    # Run second pass with audio processing if available
+                    success = self._run_second_pass(preset, hwaccel_opts, filter_chain, 
+                                               audio_params, output_file)
                     if not success:
                         raise EncodingError("Second pass encoding failed")
                 else:
                     # Run single pass encoding
                     logger.info("Starting single-pass encoding")
-                    success = self._run_single_pass(preset, hwaccel_opts, filter_chain, audio_filter, output_file)
+                    success = self._run_single_pass(preset, hwaccel_opts, filter_chain, 
+                                               audio_params, output_file)
                     if not success:
                         raise EncodingError("Single pass encoding failed")
                 
@@ -728,7 +751,8 @@ class O3Encoder:
         except KeyError:
             raise EncodingError("Invalid hardware acceleration settings in preset")
 
-    def _run_single_pass(self, preset: dict, hwaccel_opts: List[str], filter_chain: str, audio_filter: Optional[str], output_file: Path) -> bool:
+    def _run_single_pass(self, preset: dict, hwaccel_opts: List[str], filter_chain: str, 
+                        audio_params: List[str], output_file: Path) -> bool:
         try:
             print("\nSingle Pass Encoding...")
             
@@ -746,13 +770,8 @@ class O3Encoder:
             if filter_chain:
                 cmd.extend(["-vf", filter_chain])
             
-            if audio_filter:
-                cmd.extend([
-                    "-c:a", preset['audio_codec'],
-                    "-b:a", preset['audio_bitrate'],
-                    "-ac", "2",
-                    "-af", audio_filter
-                ])
+            # Add audio parameters
+            cmd.extend(audio_params)
             
             cmd.append(str(output_file))
             
@@ -781,7 +800,7 @@ class O3Encoder:
                 *preset['options'].split(),
                 "-vf", filter_chain,
                 "-pass", "1",
-                "-an",
+                "-an",  # Disable audio processing in first pass
                 "-f", "null",
                 "NUL"
             ]
@@ -796,7 +815,8 @@ class O3Encoder:
         except subprocess.SubprocessError as e:
             raise EncodingError("First pass process error")
 
-    def _run_second_pass(self, preset: dict, hwaccel_opts: List[str], filter_chain: str, audio_filter: Optional[str], output_file: Path) -> bool:
+    def _run_second_pass(self, preset: dict, hwaccel_opts: List[str], filter_chain: str, 
+                        audio_params: List[str], output_file: Path) -> bool:
         try:
             print("\nSecond Pass Encoding...")
             
@@ -813,13 +833,8 @@ class O3Encoder:
                 "-pass", "2"
             ]
             
-            if audio_filter:
-                second_pass.extend([
-                    "-c:a", preset['audio_codec'],
-                    "-b:a", preset['audio_bitrate'],
-                    "-ac", "2",
-                    "-af", audio_filter
-                ])
+            # Add audio parameters for second pass
+            second_pass.extend(audio_params)
             
             second_pass.append(str(output_file))
             print(f"ffmpeg {' '.join(second_pass[1:])}\n")

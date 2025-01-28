@@ -202,23 +202,40 @@ class O3Encoder:
                 )
 
     def _test_cuda_functionality(self):
-        result = subprocess.run([
+        nvenc_test = subprocess.run([
             self.ffmpeg,
-            "-hwaccel", "cuda",
             "-f", "lavfi",
             "-i", "color=black:s=1280x720",
             "-frames:v", "1",
+            "-c:v", "h264_nvenc",
             "-an",
             "-f", "null",
             "-"
         ], capture_output=True, text=True)
-        
-        if result.returncode != 0:
+        if nvenc_test.returncode != 0:
             raise InitializationError(
-                "NVIDIA CUDA acceleration not available\n"
-                f"Error: {result.stderr}"
+                "NVIDIA NVENC encoder not available\n"
+                f"Error: {nvenc_test.stderr}"
             )
-        logger.info("CUDA functionality test passed")
+        logger.info("NVENC encoder test passed")
+        nvenc_params_test = subprocess.run([
+            self.ffmpeg,
+            "-f", "lavfi",
+            "-i", "color=black:s=1280x720",
+            "-frames:v", "1",
+            "-c:v", "h264_nvenc",
+            "-preset", "p7",
+            "-b:v", "23600k",
+            "-an",
+            "-f", "null",
+            "-"
+        ], capture_output=True, text=True)
+        if nvenc_params_test.returncode != 0:
+            raise InitializationError(
+                "NVIDIA NVENC encoder with specific parameters not available\n"
+                f"Error: {nvenc_params_test.stderr}"
+            )
+        logger.info("NVENC encoder with parameters test passed")
 
     def _initialize_presets(self):
         self.preset_manager = PresetManager()
@@ -738,18 +755,8 @@ class O3Encoder:
             raise EncodingError(f"Failed to build audio filter: {str(e)}")
 
     def _get_hwaccel_options(self, preset: dict) -> List[str]:
-        try:
-            hwaccel = preset.get('hwaccel', 'none')
-            if hwaccel == "none" or not hwaccel:
-                return []
-                
-            hwaccel_opts = ["-hwaccel", hwaccel]
-            if hwaccel in ["cuda", "qsv", "d3d11va", "qsv", "vaapi"]:
-                hwaccel_opts.extend(["-hwaccel_output_format", hwaccel])
-            return hwaccel_opts
-            
-        except KeyError:
-            raise EncodingError("Invalid hardware acceleration settings in preset")
+        # Hardware acceleration is now handled by encoder only
+        return []
 
     def _run_single_pass(self, preset: dict, hwaccel_opts: List[str], filter_chain: str, 
                         audio_params: List[str], output_file: Path) -> bool:
@@ -761,7 +768,6 @@ class O3Encoder:
                 "-y",
                 "-loglevel", "warning",
                 "-stats",
-                *hwaccel_opts,
                 "-i", self.input_file,
                 "-c:v", preset['encoder'],
                 *preset['options'].split()
@@ -794,7 +800,6 @@ class O3Encoder:
                 "-y",
                 "-loglevel", "warning",
                 "-stats",
-                *hwaccel_opts,
                 "-i", self.input_file,
                 "-c:v", preset['encoder'],
                 *preset['options'].split(),
@@ -825,7 +830,6 @@ class O3Encoder:
                 "-y",
                 "-loglevel", "warning",
                 "-stats",
-                *hwaccel_opts,
                 "-i", self.input_file,
                 "-c:v", preset['encoder'],
                 *preset['options'].split(),
@@ -1317,7 +1321,7 @@ def main():
     try:
         # Display banner
         print("===============================================")
-        print("                        o3Enc 1.2.1")
+        print("                        o3Enc 1.2.2")
         print("            FFmpeg Encoding Utility")
         print("      https://github.com/oo0v/o3enc")
         print("===============================================")

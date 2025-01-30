@@ -78,40 +78,9 @@ class O3Encoder:
         
         self.input_file = input_file
         
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
-            bundle_dir = getattr(sys, '_MEIPASS', base_dir)
-            self.root_dir = base_dir
-            self.src_dir = os.path.join(bundle_dir, "src")
-            self.bin_dir = os.path.join(base_dir, "bin")
-            
-            temp_src = os.path.join(base_dir, "src")
-            if not os.path.exists(temp_src):
-                os.makedirs(temp_src, exist_ok=True)
-            
-            if not os.path.exists(os.path.join(temp_src, "create_presets.bat")):
-                src_file = os.path.join(self.src_dir, "create_presets.bat")
-                dst_file = os.path.join(temp_src, "create_presets.bat")
-                if os.path.exists(src_file):
-                    with open(src_file, 'rb') as f:
-                        content = f.read()
-                    with open(dst_file, 'wb') as f:
-                        f.write(content)
-            
-            if not os.path.exists(os.path.join(temp_src, "initialize.bat")):
-                src_file = os.path.join(self.src_dir, "initialize.bat")
-                dst_file = os.path.join(temp_src, "initialize.bat")
-                if os.path.exists(src_file):
-                    with open(src_file, 'rb') as f:
-                        content = f.read()
-                    with open(dst_file, 'wb') as f:
-                        f.write(content)
-            
-            self.src_dir = temp_src
-        else:
-            self.root_dir = Path(__file__).parent.parent
-            self.src_dir = os.path.join(self.root_dir, "src")
-            self.bin_dir = os.path.join(self.root_dir, "bin")
+        self.root_dir = Path(__file__).parent.parent
+        self.src_dir = Path(__file__).parent
+        self.bin_dir = self.root_dir / "bin"
         
         self.ffmpeg = os.path.join(self.bin_dir, "ffmpeg.exe")
         self.ffprobe = os.path.join(self.bin_dir, "ffprobe.exe")
@@ -900,47 +869,25 @@ class O3Encoder:
 
 class PresetManager:
     def __init__(self):
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
-            bundle_dir = getattr(sys, '_MEIPASS', base_dir)
-            self.root_dir = base_dir
-            self.src_dir = os.path.join(bundle_dir, "src")
-            
-            temp_src = os.path.join(base_dir, "src")
-            if not os.path.exists(temp_src):
-                os.makedirs(temp_src, exist_ok=True)
-            
-            if not os.path.exists(os.path.join(temp_src, "create_presets.bat")):
-                src_file = os.path.join(self.src_dir, "create_presets.bat")
-                dst_file = os.path.join(temp_src, "create_presets.bat")
-                if os.path.exists(src_file):
-                    with open(src_file, 'rb') as f:
-                        content = f.read()
-                    with open(dst_file, 'wb') as f:
-                        f.write(content)
-            
-            self.src_dir = temp_src
-        else:
-            self.root_dir = Path(__file__).parent.parent
-            self.src_dir = os.path.join(self.root_dir, "src")
-            
-        self.preset_file = os.path.join(self.root_dir, "presets.ini")
+        self.root_dir = Path(__file__).parent.parent
+        self.src_dir = Path(__file__).parent
+        self.preset_file = self.root_dir / "presets.ini"
         self.presets = {}
 
     def create_presets(self):
         try:
-            create_presets_bat = os.path.join(self.src_dir, "create_presets.bat")
-            if not os.path.exists(create_presets_bat):
+            create_presets_bat = self.src_dir / "create_presets.bat"
+            if not create_presets_bat.exists():
                 raise PresetError("create_presets.bat not found")
                 
             try:
                 result = subprocess.run(
-                    [create_presets_bat], 
+                    [str(create_presets_bat)], 
                     capture_output=True, 
                     text=True, 
                     check=True
                 )
-                if not os.path.exists(self.preset_file):
+                if not self.preset_file.exists():
                     raise PresetError(
                         f"Failed to create presets.ini:\n{result.stderr}"
                     )
@@ -953,7 +900,7 @@ class PresetManager:
 
     def load_presets(self):
         try:
-            if not os.path.exists(self.preset_file):
+            if not self.preset_file.exists():
                 logger.warning("Presets file not found")
                 logger.info("Creating default presets...")
                 self.create_presets()
@@ -977,7 +924,7 @@ class PresetManager:
                     raise PresetError("No preset_start: marker found in presets.ini")
 
                 # Create temporary ini file
-                temp_ini = self.preset_file.replace('.ini', '.temp.ini')
+                temp_ini = self.preset_file.parent / "presets.temp.ini"
                 try:
                     with open(temp_ini, 'w', encoding='utf-8') as f:
                         f.writelines(lines[preset_start+1:])
@@ -994,9 +941,9 @@ class PresetManager:
                         
                 finally:
                     # Cleanup temporary file
-                    if os.path.exists(temp_ini):
+                    if temp_ini.exists():
                         try:
-                            os.unlink(temp_ini)
+                            temp_ini.unlink()
                         except OSError as e:
                             logger.warning(f"Failed to remove temporary preset file: {str(e)}")
                             
@@ -1319,9 +1266,8 @@ def show_encoding_results(results: Dict[str, dict], ffprobe_path: str):
 
 def main():
     try:
-        # Display banner
         print("===============================================")
-        print("                        o3Enc 1.2.2")
+        print("                        o3Enc 1.2.3")
         print("            FFmpeg Encoding Utility")
         print("      https://github.com/oo0v/o3enc")
         print("===============================================")

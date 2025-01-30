@@ -5,18 +5,19 @@ o3Enc is a Python based tool for video encoding using FFmpeg.
 ## Requirements
 
 - Windows 10+ (PowerShell)
+- Python
 - NVIDIA GPU (for default presets)
 
 ## Installation
 
 1. Extract the downloaded archive to your desired location
-2. Run `o3Enc.exe` - Required components will be automatically installed in the o3enc/bin/ directory when you first run it
+2. Run `o3Enc.bat` - Required components will be automatically installed in the o3enc/bin/ directory when you first run it
 
 ## Usage
 
 Either:
-- Drag and drop a video file onto `o3Enc.exe`
-- Run `o3Enc.exe <video file>`
+- Drag and drop a video file onto `o3Enc.bat`
+- Run `o3Enc.bat <video file>`
 
 ## Presets Usage
 
